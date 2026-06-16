@@ -144,7 +144,7 @@ npx tsx db/seed.ts
 npm run build
 
 # Start with PM2 (keeps running after SSH disconnect)
-pm2 start dist/boot.js --name "roomify"
+pm2 start dist/index.js --name "roomify"
 
 # Auto-start on server reboot
 pm2 startup
