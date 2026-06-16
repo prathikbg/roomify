@@ -7,6 +7,7 @@ import {
   getTotalBudget,
   getGenerationStats,
 } from "./ai-service";
+import { rateLimit, getClientIp } from "./lib/rate-limit";
 
 export const aiRouter = createRouter({
   // Generate a room makeover image
@@ -21,7 +22,21 @@ export const aiRouter = createRouter({
         uploadedImage: z.string().optional().nullable(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // Throttle expensive AI calls per IP to prevent quota drain.
+      const ip = getClientIp(ctx.req);
+      const limit = rateLimit(`ai.generate:${ip}`);
+      if (!limit.allowed) {
+        const retryMinutes = Math.ceil(limit.retryAfterMs / 60000);
+        return {
+          success: false,
+          error: `Too many generations from this IP. Try again in ~${retryMinutes} min.`,
+          imageUrl: null,
+          provider: "rate_limited",
+          cost: "$0",
+        };
+      }
+
       try {
         const result = await generateRoomMakeover(
           input.roomType,

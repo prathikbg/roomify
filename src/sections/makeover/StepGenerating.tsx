@@ -109,46 +109,51 @@ export default function StepGenerating() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
         minHeight: '60vh',
       }}
     >
-      {/* Spinner */}
-      <div
-        style={{
-          width: '64px',
-          height: '64px',
-          border: '2px solid rgba(255,255,255,0.08)',
-          borderTop: '2px solid #f25b29',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-          marginBottom: '2.5rem',
-        }}
-      />
+      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        <h2
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+            fontWeight: 400,
+            color: '#ffffff',
+            marginBottom: '0.75rem',
+            lineHeight: 1.2,
+          }}
+        >
+          Designing Your Dream Room
+        </h2>
+        <p
+          style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: '15px',
+            color: '#b0b2b5',
+            margin: 0,
+          }}
+        >
+          {statusText}
+        </p>
+      </div>
 
-      <h2
-        style={{
-          fontFamily: 'var(--font-serif)',
-          fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
-          fontWeight: 400,
-          color: '#ffffff',
-          marginBottom: '1rem',
-          lineHeight: 1.2,
-        }}
-      >
-        Designing Your Dream Room
-      </h2>
-
-      <p
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: '15px',
-          color: '#b0b2b5',
-          marginBottom: '0.5rem',
-        }}
-      >
-        {statusText}
-      </p>
+      {/* Scanning preview of the uploaded photo */}
+      {state.uploadedImage && (
+        <div
+          className="makeover-scan"
+          style={{
+            width: '100%',
+            maxWidth: '520px',
+            marginBottom: '2rem',
+          }}
+        >
+          <img
+            src={state.uploadedImage}
+            alt="Analyzing room"
+            style={{ width: '100%', display: 'block', borderRadius: '11px' }}
+          />
+        </div>
+      )}
 
       {/* AI Provider badge */}
       <div
@@ -158,21 +163,21 @@ export default function StepGenerating() {
           color: isMock ? '#888' : '#4CAF50',
           textTransform: 'uppercase',
           letterSpacing: '0.1em',
-          marginBottom: '2rem',
+          marginBottom: '1.25rem',
           padding: '4px 12px',
           borderRadius: '12px',
           background: isMock ? 'rgba(255,255,255,0.04)' : 'rgba(76,175,80,0.1)',
           border: `1px solid ${isMock ? 'rgba(255,255,255,0.1)' : 'rgba(76,175,80,0.3)'}`,
         }}
       >
-        {isMock ? 'Demo Mode - Pre-generated images' : `AI Active - ${aiStatus.data?.provider || 'AI'}`}
+        {isMock ? 'Demo Mode — Pre-generated images' : `AI Active — ${aiStatus.data?.provider || 'AI'}`}
       </div>
 
       {/* Progress Bar */}
       <div
         style={{
           width: '100%',
-          maxWidth: '400px',
+          maxWidth: '420px',
           height: '3px',
           background: 'rgba(255,255,255,0.08)',
           borderRadius: '2px',
@@ -183,7 +188,7 @@ export default function StepGenerating() {
           style={{
             width: `${progress}%`,
             height: '100%',
-            background: '#f25b29',
+            background: 'linear-gradient(90deg, #f25b29, #ffa37a)',
             borderRadius: '2px',
             transition: 'width 0.4s ease',
           }}
@@ -201,12 +206,6 @@ export default function StepGenerating() {
       >
         {progress}%
       </span>
-
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

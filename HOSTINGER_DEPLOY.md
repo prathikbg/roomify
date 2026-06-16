@@ -4,13 +4,14 @@
 
 ### 1. Environment Variables (.env)
 
-Your `.env` file is already configured. Before pushing to GitHub:
+Before pushing to GitHub, confirm your `.env` is configured:
 
-- [x] Leonardo AI key set (`LEONARDO_API_KEY=d0ca012d-813f-4118-a934-3a85e2da5478`)
-- [x] Amazon affiliate tag set (`AFFILIATE_TAG=5010b3-21`)
-- [x] Database URL configured (auto-set by backend init)
-- [x] `.env` is in `.gitignore` (WON'T be committed)
-- [x] `.env.example` is committed (template for new setups)
+- [ ] `AI_PROVIDER` set to one of: `cloudflare` | `gemini` | `pollinations` | `leonardo`
+- [ ] Matching API key set for that provider (see `.env.example`)
+- [ ] `AFFILIATE_TAG` set to your Amazon Associates tracking ID
+- [ ] `DATABASE_URL` points to your MySQL instance
+- [ ] `.env` is in `.gitignore` (verify with `git check-ignore .env`)
+- [ ] `.env.example` committed as a template (no real secrets inside)
 
 ### 2. What Gets Committed to Git
 
@@ -95,17 +96,27 @@ Edit `.env` on the server:
 # --- Database ---
 DATABASE_URL=mysql://your_mysql_user:your_password@localhost:3306/roomify
 
-# --- AI ---
-AI_PROVIDER=leonardo
-LEONARDO_API_KEY=d0ca012d-813f-4118-a934-3a85e2da5478
+# --- AI (pick ONE provider, set its key) ---
+AI_PROVIDER=cloudflare
+CLOUDFLARE_ACCOUNT_ID=<your-cloudflare-account-id>
+CLOUDFLARE_API_TOKEN=<your-cloudflare-workers-ai-token>
+
+# Alternatives:
+# AI_PROVIDER=gemini
+# GEMINI_API_KEY=<your-gemini-key>
+# AI_PROVIDER=leonardo
+# LEONARDO_API_KEY=<your-leonardo-key>
+# AI_PROVIDER=pollinations    # no key required
 
 # --- Affiliate ---
-AFFILIATE_TAG=5010b3-21
+AFFILIATE_TAG=<your-amazon-associates-tag>
 
 # --- App ---
-VITE_APP_URL=https://your-domain.com
-API_SECRET=your-random-secret-key-here
+NODE_ENV=production
+PORT=3000
 ```
+
+> ⚠️ **Never commit real keys.** Use `.env.example` (placeholders only) as the committed template.
 
 ### Step 5: Database Setup
 
@@ -222,6 +233,7 @@ pm2 restart roomify
 | `PORT 3000 already in use` | `lsof -ti:3000 \| xargs kill -9` |
 | `Database connection refused` | Check MySQL is running: `sudo systemctl status mysql` |
 | `npm run build fails` | Delete `dist/` and `node_modules/`, run `npm install`, retry |
-| `Leonardo API 401 error` | Check `LEONARDO_API_KEY` in `.env` |
+| `AI provider 401/403 error` | Check the matching `*_API_KEY` / `*_API_TOKEN` in `.env` for the active `AI_PROVIDER` |
+| `429 Too many requests from this IP` | Rate limit hit (10 generations/IP/hour by default). Tune in `api/lib/rate-limit.ts` |
 | `Gallery shows 0 items` | Run `npx tsx db/seed.ts` to seed database |
 | `Static files not loading` | Check `dist/public/` exists after build |

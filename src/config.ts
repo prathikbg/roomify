@@ -106,11 +106,8 @@ export const heroConfig: HeroConfig = {
       },
     },
   ],
-  metaLines: [
-    "Transform Any Room with AI",
-    "Modern · Scandinavian · Japandi · Luxury · Boho · Industrial",
-    "Upload Your Room → Choose a Style → Get Your Makeover",
-  ],
+  // Meta lines intentionally empty — the messaging now lives in HeroOverlay.
+  metaLines: [],
 }
 
 // --- Particle Sculpture ---

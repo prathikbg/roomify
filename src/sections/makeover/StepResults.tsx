@@ -29,28 +29,16 @@ export default function StepResults() {
     <div className="makeover-step">
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            letterSpacing: '0.15em',
-            color: '#f25b29',
-            textTransform: 'uppercase',
-          }}
-        >
-          Your Makeover is Ready
-        </span>
         <h2
           style={{
             fontFamily: 'var(--font-serif)',
             fontSize: 'clamp(1.8rem, 4vw, 3rem)',
             fontWeight: 400,
             color: '#ffffff',
-            marginTop: '1rem',
             lineHeight: 1.2,
           }}
         >
-          Before & After
+          Your Makeover is Ready
         </h2>
         <p
           style={{
@@ -176,8 +164,12 @@ export default function StepResults() {
             Color Palette
           </h3>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            {state.colorPalette.map((color) => (
-              <div key={color.hex} style={{ textAlign: 'center' }}>
+            {state.colorPalette.map((color, i) => (
+              <div
+                key={color.hex}
+                className="palette-swatch"
+                style={{ textAlign: 'center', animationDelay: `${i * 70}ms` }}
+              >
                 <div
                   style={{
                     width: '64px',
@@ -187,12 +179,18 @@ export default function StepResults() {
                     border: '1px solid rgba(255,255,255,0.1)',
                     marginBottom: '0.5rem',
                     cursor: 'pointer',
-                    transition: 'transform 0.2s ease',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                   }}
                   onClick={() => navigator.clipboard?.writeText(color.hex)}
                   title="Click to copy hex"
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.08)';
+                    e.currentTarget.style.boxShadow = `0 8px 24px ${color.hex}55`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 />
                 <div
                   style={{
@@ -356,6 +354,40 @@ export default function StepResults() {
           justifyContent: 'center',
         }}
       >
+        {state.generatedImage && (
+          <a
+            href={state.generatedImage}
+            download={`roomify-${state.designStyle || 'makeover'}.png`}
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: '13px',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.12em',
+              padding: '14px 32px',
+              borderRadius: '4px',
+              border: 'none',
+              cursor: 'pointer',
+              background: '#f25b29',
+              color: '#ffffff',
+              transition: 'all 0.3s ease',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              textDecoration: 'none',
+              boxShadow: '0 8px 24px rgba(242,91,41,0.3)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#d94e22'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#f25b29'; }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download
+          </a>
+        )}
         <button
           onClick={handleDownloadPinterest}
           style={{
