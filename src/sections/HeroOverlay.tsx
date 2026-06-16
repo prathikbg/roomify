@@ -53,7 +53,24 @@ export default function HeroOverlay() {
               <path d="M5 12h14M13 5l7 7-7 7" />
             </svg>
           </Link>
-          <a href="#gallery" className="hero-overlay__cta-secondary">
+          <a
+            href="#waves-gallery"
+            className="hero-overlay__cta-secondary"
+            onClick={(e) => {
+              // HashRouter owns the URL hash, so a plain hash anchor would
+              // break routing. Intercept and scroll to the gallery section
+              // directly, preferring Lenis if it's wired up.
+              e.preventDefault();
+              const el = document.getElementById('waves-gallery');
+              if (!el) return;
+              const lenis = (window as any).__lenis;
+              if (lenis && typeof lenis.scrollTo === 'function') {
+                lenis.scrollTo(el, { offset: 0 });
+              } else {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }}
+          >
             or browse 21 styles
           </a>
         </div>

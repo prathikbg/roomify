@@ -424,6 +424,29 @@ export default function ImageGallery() {
   );
   const weekSlotsQuery = trpc.gallery.getWeekSlots.useQuery();
 
+  // Live trends — used to badge cards whose style matches a top trend
+  const trendsQuery = trpc.trends.current.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+  const topTrends = trendsQuery.data?.topTrends ?? [];
+
+  // Match a gallery item against the ranked trend list.
+  // Returns the lowest (best) rank whose keyword tokens all appear in the item.
+  function findTrendRank(item: any): { rank: number; keyword: string } | null {
+    if (!topTrends.length) return null;
+    const haystack = `${item.caption || ''} ${item.style || ''} ${item.description || ''}`.toLowerCase();
+    for (let i = 0; i < topTrends.length; i++) {
+      const kw = topTrends[i].keyword.toLowerCase();
+      const tokens = kw.split(/\s+/).filter((t: string) => t.length > 2);
+      if (tokens.length === 0) continue;
+      if (tokens.every((t: string) => haystack.includes(t))) {
+        return { rank: i + 1, keyword: topTrends[i].keyword };
+      }
+    }
+    return null;
+  }
+
   // Use API data with static fallback
   const apiItems = allItemsQuery.data ?? [];
   const weekItems = weekQuery.data?.items ?? [];
@@ -727,7 +750,9 @@ export default function ImageGallery() {
             maxWidth: '1400px',
           }}
         >
-          {filteredItems.map((item: any, i: number) => (
+          {filteredItems.map((item: any, i: number) => {
+            const trendMatch = findTrendRank(item);
+            return (
             <div
               key={item.id ?? i}
               className="gallery-card"
@@ -793,6 +818,32 @@ export default function ImageGallery() {
                 >
                   {item.difficulty}
                 </div>
+                {trendMatch && (
+                  <div
+                    title={`Trending #${trendMatch.rank}: ${trendMatch.keyword}`}
+                    style={{
+                      position: 'absolute',
+                      bottom: '10px',
+                      left: '10px',
+                      background: 'linear-gradient(90deg, rgba(242,91,41,0.95), rgba(242,91,41,0.85))',
+                      padding: '5px 10px 5px 8px',
+                      borderRadius: '12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px',
+                      color: '#fff',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      boxShadow: '0 4px 12px rgba(242,91,41,0.35)',
+                    }}
+                  >
+                    <span style={{ fontSize: '12px', lineHeight: 1 }}>🔥</span>
+                    <span>Trending #{trendMatch.rank}</span>
+                  </div>
+                )}
               </div>
               <div
                 style={{
@@ -835,7 +886,8 @@ export default function ImageGallery() {
                 {item.style} &middot; {item.timeEstimate}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Loading state */}

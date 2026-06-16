@@ -15,6 +15,9 @@ export function useLenis() {
     });
 
     lenisRef.current = lenis;
+    // Expose globally so non-prop-drilled components (e.g. HeroOverlay) can
+    // use the same smooth-scroll engine via window.__lenis.scrollTo(...).
+    (window as any).__lenis = lenis;
 
     lenis.on('scroll', ScrollTrigger.update);
 
@@ -27,6 +30,9 @@ export function useLenis() {
     return () => {
       lenis.destroy();
       lenisRef.current = null;
+      if ((window as any).__lenis === lenis) {
+        delete (window as any).__lenis;
+      }
     };
   }, []);
 

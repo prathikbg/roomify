@@ -2,6 +2,30 @@ import { useState } from 'react';
 import { useMakeover } from '../../contexts/MakeoverContext';
 import { designStyles, furnitureRecommendations } from '../../data/makeoverData';
 import { generatePinterestImage } from '../../utils/imageGenerator';
+import { downloadImage, makeoverFilename } from '../../utils/downloadImage';
+
+// Lightweight category → emoji mapping for furniture cards.
+// Keeps the card visual without depending on remote product images.
+function furnitureIcon(name: string): string {
+  const n = name.toLowerCase();
+  if (/bed|mattress|bunk/.test(n)) return '🛏️';
+  if (/sofa|couch|seater/.test(n)) return '🛋️';
+  if (/chair|stool/.test(n)) return '🪑';
+  if (/lamp|light|chandelier|pendant|led/.test(n)) return '💡';
+  if (/table|desk|island|console|sideboard|bistro/.test(n)) return '🪟';
+  if (/rug|mat|carpet/.test(n)) return '🧶';
+  if (/mirror/.test(n)) return '🪞';
+  if (/cushion|pillow|throw/.test(n)) return '🛌';
+  if (/art|wall|decal|painting|canvas/.test(n)) return '🖼️';
+  if (/plant|garden|planter/.test(n)) return '🪴';
+  if (/curtain|drape|blind/.test(n)) return '🪟';
+  if (/shelf|bookshelf|rack|cabinet|wardrobe|closet|organizer|storage|hutch/.test(n)) return '🗄️';
+  if (/dinner|plate|thali|tray|cup|set/.test(n)) return '🍽️';
+  if (/mandir|temple|diya|incense|pooja/.test(n)) return '🕉️';
+  if (/towel|shower|bath|vanity/.test(n)) return '🚿';
+  if (/key|hook/.test(n)) return '🔑';
+  return '🏷️';
+}
 
 export default function StepResults() {
   const { state, dispatch } = useMakeover();
@@ -18,12 +42,33 @@ export default function StepResults() {
     setShowPinterest(true);
   };
 
+  const handleDownloadGenerated = async () => {
+    if (!state.generatedImage) return;
+    await downloadImage(state.generatedImage, makeoverFilename(state.designStyle));
+  };
+
   const getFurnitureItems = () => {
     const items = state.roomType ? furnitureRecommendations[state.roomType]?.default : [];
     return items || [];
   };
 
-  const totalBudget = getFurnitureItems().reduce((sum, item) => sum + item.price, 0);
+  const furnitureItems = getFurnitureItems();
+  const totalBudget = furnitureItems.reduce((sum, item) => sum + item.price, 0);
+  const featuredIdx = furnitureItems.reduce(
+    (best, item, idx, arr) => (item.price > arr[best].price ? idx : best),
+    0
+  );
+
+  // Build a single Amazon India search URL covering every recommended item.
+  // We pull the first two words of each item name (so "Wooden Queen Bed Frame" → "wooden queen")
+  // and join them — Amazon's keyword search handles this well and the affiliate tag is preserved.
+  const buyAllUrl = (() => {
+    if (furnitureItems.length === 0) return '';
+    const keywords = furnitureItems
+      .map((item) => item.name.toLowerCase().split(/\s+/).slice(0, 2).join(' '))
+      .join(' ');
+    return `https://www.amazon.in/s?k=${encodeURIComponent(keywords)}&tag=5010b3-21`;
+  })();
 
   return (
     <div className="makeover-step">
@@ -218,126 +263,79 @@ export default function StepResults() {
         </div>
       )}
 
-      {/* Furniture Recommendations with Product Links */}
-      {getFurnitureItems().length > 0 && (
-        <div style={{ maxWidth: '700px', margin: '0 auto 3rem' }}>
-          <h3
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: '14px',
-              fontWeight: 400,
-              color: '#b0b2b5',
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              marginBottom: '1.25rem',
-            }}
-          >
-            Furniture Recommendations
-          </h3>
-          <div
-            style={{
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '10px',
-              overflow: 'hidden',
-            }}
-          >
-            {getFurnitureItems().map((item, i) => (
-              <div
+      {/* Furniture Recommendations — card grid */}
+      {furnitureItems.length > 0 && (
+        <div className="furniture-section">
+          <div className="furniture-section__header">
+            <div>
+              <div className="furniture-section__eyebrow">Shop the look</div>
+              <h3 className="furniture-section__title">Furniture & Decor</h3>
+            </div>
+            <div className="furniture-section__count">
+              {furnitureItems.length} curated picks
+            </div>
+          </div>
+
+          <div className="furniture-grid">
+            {furnitureItems.map((item, i) => (
+              <a
                 key={i}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '16px 20px',
-                  borderBottom: i < getFurnitureItems().length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                }}
+                href={item.affiliateLink}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                className={`furniture-card${i === featuredIdx ? ' furniture-card--featured' : ''}`}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-sans)',
-                      fontSize: '14px',
-                      color: '#d0d0d0',
-                      display: 'block',
-                    }}
-                  >
-                    {item.name}
-                  </span>
-                  <a
-                    href={item.affiliateLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      fontFamily: 'var(--font-sans)',
-                      fontSize: '11px',
-                      color: '#f25b29',
-                      textDecoration: 'none',
-                      marginTop: '4px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      opacity: 0.8,
-                      transition: 'opacity 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                    View Product
-                  </a>
+                <div className="furniture-card__icon" aria-hidden>
+                  {furnitureIcon(item.name)}
                 </div>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '14px',
-                    color: '#f25b29',
-                    fontWeight: 500,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  ₹{item.price.toLocaleString('en-IN')}
-                </span>
-              </div>
+                <div className="furniture-card__body">
+                  <div className="furniture-card__name">{item.name}</div>
+                  <div className="furniture-card__meta">
+                    <span className="furniture-card__price">
+                      ₹{item.price.toLocaleString('en-IN')}
+                    </span>
+                    {i === featuredIdx && furnitureItems.length > 1 && (
+                      <span className="furniture-card__badge">Statement piece</span>
+                    )}
+                  </div>
+                </div>
+                <div className="furniture-card__cta" aria-label="Open on Amazon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </div>
+              </a>
             ))}
-            {/* Total */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '14px 20px',
-                background: 'rgba(242,91,41,0.08)',
-                borderTop: '1px solid rgba(242,91,41,0.2)',
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  color: '#ffffff',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                Total Budget
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '16px',
-                  color: '#f25b29',
-                  fontWeight: 600,
-                }}
-              >
+          </div>
+
+          <div className="furniture-summary">
+            <div className="furniture-summary__left">
+              <div className="furniture-summary__label">Total estimate</div>
+              <div className="furniture-summary__hint">
+                Prices via Amazon India · affiliate links
+              </div>
+            </div>
+            <div className="furniture-summary__right">
+              <div className="furniture-summary__total">
                 ₹{totalBudget.toLocaleString('en-IN')}
-              </span>
+              </div>
+              {buyAllUrl && (
+                <a
+                  href={buyAllUrl}
+                  target="_blank"
+                  rel="noopener noreferrer sponsored"
+                  className="furniture-summary__cta"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="9" cy="21" r="1" />
+                    <circle cx="20" cy="21" r="1" />
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                  </svg>
+                  Shop all on Amazon
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -355,9 +353,9 @@ export default function StepResults() {
         }}
       >
         {state.generatedImage && (
-          <a
-            href={state.generatedImage}
-            download={`roomify-${state.designStyle || 'makeover'}.png`}
+          <button
+            type="button"
+            onClick={handleDownloadGenerated}
             style={{
               fontFamily: 'var(--font-sans)',
               fontSize: '13px',
@@ -374,7 +372,6 @@ export default function StepResults() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px',
-              textDecoration: 'none',
               boxShadow: '0 8px 24px rgba(242,91,41,0.3)',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = '#d94e22'; }}
@@ -385,8 +382,8 @@ export default function StepResults() {
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            Download
-          </a>
+            Download Image
+          </button>
         )}
         <button
           onClick={handleDownloadPinterest}

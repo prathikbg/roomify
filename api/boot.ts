@@ -5,8 +5,12 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { createContext } from "./context";
 import { env } from "./lib/env";
+import { startTrendCron } from "./lib/trend-cron";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
+
+// Keep the trend cache warm — runs in both dev (via vite middleware) and prod.
+startTrendCron();
 
 // Health check endpoint
 app.get("/api/health", (c) => c.json({ status: "ok", ts: Date.now() }));

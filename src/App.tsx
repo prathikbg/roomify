@@ -12,6 +12,7 @@ import FooterTicker from './sections/FooterTicker';
 import MakeoverFlow from './sections/makeover/MakeoverFlow';
 import GalleryManage from './pages/GalleryManage';
 import TrendsPage from './pages/TrendsPage';
+import MyDesignsPage from './pages/MyDesignsPage';
 
 function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -96,6 +97,7 @@ function App() {
       <Route path="/makeover" element={<MakeoverPage />} />
       <Route path="/manage-gallery" element={<GalleryManage />} />
       <Route path="/trends" element={<TrendsPage />} />
+      <Route path="/my-designs" element={<MyDesignsPage />} />
     </Routes>
   );
 }

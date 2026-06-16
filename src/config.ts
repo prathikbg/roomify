@@ -33,6 +33,7 @@ export const navigationConfig: NavigationConfig = {
     { label: "GALLERY", target: "waves-gallery" },
     { label: "INSPIRE", target: "waves-video" },
     { label: "TRENDS", target: "/trends" },
+    { label: "MY DESIGNS", target: "/my-designs" },
     { label: "FOOTER", target: "footer" },
   ],
   menuSideInfo: [

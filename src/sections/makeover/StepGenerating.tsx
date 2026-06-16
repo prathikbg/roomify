@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMakeover } from '../../contexts/MakeoverContext';
 import { trpc } from '@/providers/trpc';
+import { saveDesign } from '../../utils/savedDesigns';
+import { designStyles } from '../../data/makeoverData';
 
 export default function StepGenerating() {
   const { state, dispatch } = useMakeover();
@@ -87,6 +89,30 @@ export default function StepGenerating() {
           pinterestImage: result.imageUrl || state.uploadedImage || '',
         },
       });
+
+      // Auto-persist the completed makeover to browser-local IndexedDB so the
+      // user can revisit it from /my-designs without an account. Fire-and-forget;
+      // never block the UI on storage.
+      const generatedImage = result.imageUrl || state.uploadedImage || '';
+      if (state.uploadedImage && generatedImage) {
+        const styleLabel = designStyles.find((s) => s.value === state.designStyle)?.label || '';
+        const furnitureForSave = (furniture?.items ?? []).map((item) => ({
+          name: item.name,
+          price: item.price,
+          affiliateLink: item.link,
+        }));
+        saveDesign({
+          roomType: state.roomType,
+          designStyle: state.designStyle,
+          styleLabel,
+          uploadedImage: state.uploadedImage,
+          generatedImage,
+          colorPalette: palette,
+          furniture: furnitureForSave,
+        }).catch(() => {
+          // Silently ignore storage errors (private mode, quota exceeded, etc.)
+        });
+      }
 
       dispatch({ type: 'SET_GENERATING', payload: false });
       dispatch({ type: 'NEXT_STEP' });
