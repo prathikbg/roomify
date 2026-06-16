@@ -15,13 +15,18 @@ export const aiRouter = createRouter({
       z.object({
         roomType: z.string().min(1),
         designStyle: z.string().min(1),
+        // Optional base64 data URL of the user's uploaded room photo.
+        // When supplied with AI_PROVIDER=leonardo, runs image-to-image so the
+        // redesign preserves the original room's layout.
+        uploadedImage: z.string().optional().nullable(),
       })
     )
     .mutation(async ({ input }) => {
       try {
         const result = await generateRoomMakeover(
           input.roomType,
-          input.designStyle
+          input.designStyle,
+          input.uploadedImage
         );
         return {
           success: true,

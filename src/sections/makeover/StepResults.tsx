@@ -1,51 +1,14 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useMakeover } from '../../contexts/MakeoverContext';
 import { designStyles, furnitureRecommendations } from '../../data/makeoverData';
 import { generatePinterestImage } from '../../utils/imageGenerator';
 
 export default function StepResults() {
   const { state, dispatch } = useMakeover();
-  const [sliderPosition, setSliderPosition] = useState(50);
-  const [isDragging, setIsDragging] = useState(false);
   const [showPinterest, setShowPinterest] = useState(false);
   const [pinterestUrl, setPinterestUrl] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const styleLabel = designStyles.find((s) => s.value === state.designStyle)?.label || '';
-
-  const handleMove = useCallback(
-    (clientX: number) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
-      const percent = (x / rect.width) * 100;
-      setSliderPosition(Math.max(2, Math.min(98, percent)));
-    },
-    []
-  );
-
-  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-  const handleMouseUp = useCallback(() => setIsDragging(false), []);
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (isDragging) handleMove(e.clientX);
-    },
-    [isDragging, handleMove]
-  );
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      handleMove(e.touches[0].clientX);
-    },
-    [handleMove]
-  );
-  const handleTrackClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.slider-handle')) return;
-    handleMove(e.clientX);
-  };
 
   const handleDownloadPinterest = async () => {
     if (!state.uploadedImage || !state.generatedImage) return;
@@ -100,147 +63,99 @@ export default function StepResults() {
             lineHeight: 1.6,
           }}
         >
-          Drag the slider to compare your original room with the {styleLabel} redesign
+          Your original room next to the {styleLabel} redesign
         </p>
       </div>
 
-      {/* Before/After Slider - Using <img> tags for full visibility */}
+      {/* Before/After side-by-side — both images shown in full (no cropping, no slider) */}
       <div
-        ref={containerRef}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleMouseUp}
-        onClick={handleTrackClick}
         style={{
-          position: 'relative',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '1.5rem',
           width: '100%',
-          maxWidth: '800px',
+          maxWidth: '1100px',
           margin: '0 auto 3rem',
-          borderRadius: '12px',
-          overflow: 'hidden',
-          cursor: isDragging ? 'grabbing' : 'grab',
-          userSelect: 'none',
-          touchAction: 'none',
         }}
       >
-        {/* After image (full width, bottom layer) */}
-        <img
-          src={state.generatedImage || ''}
-          alt={`${styleLabel} redesigned room`}
-          draggable={false}
-          style={{
-            width: '100%',
-            display: 'block',
-            aspectRatio: '3/2',
-            objectFit: 'cover',
-          }}
-        />
-
-        {/* Before image (clipped overlay) */}
+        {/* Before */}
         <div
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: `${sliderPosition}%`,
-            height: '100%',
+            position: 'relative',
+            background: '#0a0a0a',
+            borderRadius: '12px',
             overflow: 'hidden',
-            borderRight: '2px solid #f25b29',
+            border: '1px solid rgba(255,255,255,0.08)',
           }}
         >
           <img
             src={state.uploadedImage || ''}
             alt="Original room"
-            draggable={false}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: `${10000 / sliderPosition}px`,
-              maxWidth: 'none',
-              height: '100%',
-              objectFit: 'cover',
+              width: '100%',
+              height: 'auto',
+              maxHeight: '70vh',
+              display: 'block',
+              objectFit: 'contain',
             }}
           />
-        </div>
-
-        {/* Slider Handle */}
-        <div
-          className="slider-handle"
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleMouseDown}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: `${sliderPosition}%`,
-            transform: 'translateX(-50%)',
-            width: '40px',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'grab',
-            zIndex: 10,
-          }}
-        >
           <div
             style={{
-              width: '40px',
-              height: '40px',
-              background: '#f25b29',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-              pointerEvents: 'none',
+              position: 'absolute',
+              top: '12px',
+              left: '12px',
+              background: 'rgba(0,0,0,0.65)',
+              padding: '6px 14px',
+              borderRadius: '4px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '11px',
+              color: '#fff',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-              <polyline points="15 18 9 12 15 6" />
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
+            Before
           </div>
         </div>
 
-        {/* Labels */}
+        {/* After */}
         <div
           style={{
-            position: 'absolute',
-            top: '16px',
-            left: '16px',
-            background: 'rgba(0,0,0,0.6)',
-            padding: '6px 14px',
-            borderRadius: '4px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            color: '#fff',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            zIndex: 5,
+            position: 'relative',
+            background: '#0a0a0a',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            border: '1px solid rgba(242,91,41,0.4)',
           }}
         >
-          Before
-        </div>
-        <div
-          style={{
-            position: 'absolute',
-            top: '16px',
-            right: '16px',
-            background: 'rgba(242,91,41,0.8)',
-            padding: '6px 14px',
-            borderRadius: '4px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            color: '#fff',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            zIndex: 5,
-          }}
-        >
-          After — {styleLabel}
+          <img
+            src={state.generatedImage || ''}
+            alt={`${styleLabel} redesigned room`}
+            style={{
+              width: '100%',
+              height: 'auto',
+              maxHeight: '70vh',
+              display: 'block',
+              objectFit: 'contain',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: '12px',
+              left: '12px',
+              background: 'rgba(242,91,41,0.85)',
+              padding: '6px 14px',
+              borderRadius: '4px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '11px',
+              color: '#fff',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+            }}
+          >
+            After — {styleLabel}
+          </div>
         </div>
       </div>
 

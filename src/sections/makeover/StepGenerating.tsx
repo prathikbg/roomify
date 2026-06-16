@@ -39,6 +39,7 @@ export default function StepGenerating() {
       const result = await generateMutation.mutateAsync({
         roomType: state.roomType!,
         designStyle: state.designStyle!,
+        uploadedImage: state.uploadedImage,
       });
 
       if (result.success && result.imageUrl) {

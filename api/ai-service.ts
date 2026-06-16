@@ -19,7 +19,8 @@
  */
 
 // Provider selection from env
-const PROVIDER = process.env.AI_PROVIDER || 'mock'; // 'mock' | 'openai' | 'stability' | 'replicate' | 'leonardo'
+// Normalize so AI_PROVIDER=GEMINI, Gemini, or gemini all work.
+const PROVIDER = (process.env.AI_PROVIDER || 'mock').trim().toLowerCase(); // 'mock' | 'openai' | 'stability' | 'replicate' | 'leonardo' | 'gemini' | 'pollinations' | 'cloudflare'
 
 // Cost tracking (per image generated)
 let generationCount = 0;
@@ -164,10 +165,101 @@ async function replicateGenerate(prompt: string, _style: string): Promise<string
 // LEONARDO AI (Free tier available)
 // Cost: Free 150 tokens/day, then ~$0.01/image
 // Sign up: https://leonardo.ai/
+// Supports image-to-image: when initImage is provided, the user's
+// uploaded room is used as the structural base and the prompt
+// guides the redesign (style transfer).
 // ============================================================
-async function leonardoGenerate(prompt: string, _style: string): Promise<string> {
+
+// Parse a data URL (e.g. "data:image/jpeg;base64,...") into bytes + extension.
+// Leonardo's init-image endpoint accepts jpg, png, webp — anything else is
+// coerced to "jpg" (Leonardo will read the bytes regardless; the extension
+// is mostly used for the S3 object key).
+function parseDataUrl(dataUrl: string): { buffer: Buffer; extension: 'jpg' | 'png' | 'webp' } {
+  // Accept optional mime parameters (e.g. "data:image/jpeg;charset=utf-8;base64,...")
+  const match = dataUrl.match(/^data:image\/([a-z0-9.+-]+)(?:;[^;,]+)*;base64,(.+)$/i);
+  if (!match) {
+    const preview = dataUrl.slice(0, 40);
+    throw new Error(`Invalid image data URL (got: "${preview}..."). Expected "data:image/<type>;base64,..."`);
+  }
+  const subtype = match[1].toLowerCase();
+  let extension: 'jpg' | 'png' | 'webp';
+  if (subtype === 'jpeg' || subtype === 'jpg') extension = 'jpg';
+  else if (subtype === 'png') extension = 'png';
+  else if (subtype === 'webp') extension = 'webp';
+  else extension = 'jpg'; // fallback for heic/heif/avif/gif/etc — bytes still pass through
+  return { buffer: Buffer.from(match[2], 'base64'), extension };
+}
+
+// Upload an init image to Leonardo and return its image id (used by image-to-image).
+async function leonardoUploadInitImage(apiKey: string, dataUrl: string): Promise<string> {
+  const { buffer, extension } = parseDataUrl(dataUrl);
+
+  // Step A: request a presigned S3 upload from Leonardo
+  const presignRes = await fetch('https://cloud.leonardo.ai/api/rest/v1/init-image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ extension }),
+  });
+
+  if (!presignRes.ok) {
+    throw new Error(`Leonardo init-image presign failed: ${presignRes.status} ${await presignRes.text()}`);
+  }
+
+  const presign = await presignRes.json() as {
+    uploadInitImage: { id: string; fields: string; key: string; url: string };
+  };
+  const { id, fields, url } = presign.uploadInitImage;
+
+  // Step B: POST the bytes to the presigned S3 URL as multipart/form-data.
+  // `fields` is a JSON string containing all required S3 form fields; `file` must come last.
+  const form = new FormData();
+  const fieldMap = JSON.parse(fields) as Record<string, string>;
+  for (const [k, v] of Object.entries(fieldMap)) form.append(k, v);
+  const mimeForBlob = extension === 'jpg' ? 'image/jpeg' : `image/${extension}`;
+  form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeForBlob }), `init.${extension}`);
+
+  const uploadRes = await fetch(url, { method: 'POST', body: form });
+  if (!uploadRes.ok) {
+    throw new Error(`Leonardo init-image upload failed: ${uploadRes.status} ${await uploadRes.text()}`);
+  }
+
+  return id;
+}
+
+async function leonardoGenerate(
+  prompt: string,
+  _style: string,
+  initImage?: string | null
+): Promise<string> {
   const apiKey = process.env.LEONARDO_API_KEY;
   if (!apiKey) throw new Error('LEONARDO_API_KEY not set in .env');
+
+  // If the user uploaded a photo, run image-to-image so the redesign keeps
+  // the original room's layout/structure. Otherwise fall back to text-to-image.
+  let initImageId: string | null = null;
+  if (initImage) {
+    initImageId = await leonardoUploadInitImage(apiKey, initImage);
+  }
+
+  const body: Record<string, unknown> = {
+    prompt,
+    // Leonardo Kino XL — photorealistic/cinematic, well-suited for interior renders
+    // and supports the classic image-to-image params (init_image_id + init_strength).
+    modelId: 'aa77f04e-3eec-4034-9c07-d0f619684628',
+    width: 1024,
+    height: 1024,
+    num_images: 1,
+  };
+
+  if (initImageId) {
+    body.init_image_id = initImageId;
+    // 0.1 = ignore original, 0.9 = preserve original. 0.4 keeps room layout while letting the style dominate.
+    body.init_strength = 0.4;
+    body.guidance_scale = 7;
+  }
 
   // Step 1: Create generation
   const createResponse = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
@@ -176,17 +268,11 @@ async function leonardoGenerate(prompt: string, _style: string): Promise<string>
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      prompt: prompt,
-      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f34d3', // Leonardo Diffusion XL
-      width: 1024,
-      height: 1024,
-      num_images: 1,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!createResponse.ok) {
-    throw new Error(`Leonardo error: ${createResponse.statusText}`);
+    throw new Error(`Leonardo error: ${createResponse.status} ${await createResponse.text()}`);
   }
 
   const createData = await createResponse.json() as {
@@ -212,6 +298,146 @@ async function leonardoGenerate(prompt: string, _style: string): Promise<string>
   }
 
   throw new Error('Leonardo generation timed out');
+}
+
+// ============================================================
+// GOOGLE GEMINI 2.5 FLASH IMAGE ("nano-banana")
+// Free tier: ~500-1500 requests/day. Best-in-class image editing.
+// Supports image-to-image natively: pass the room photo + edit prompt.
+// Get key: https://aistudio.google.com/apikey  (no credit card)
+// ============================================================
+async function geminiGenerate(
+  prompt: string,
+  _style: string,
+  initImage?: string | null
+): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
+
+  const parts: Array<Record<string, unknown>> = [];
+
+  if (initImage) {
+    // Image-editing mode: send the uploaded room + an edit instruction.
+    const match = initImage.match(/^data:(image\/[a-z0-9.+-]+)(?:;[^;,]+)*;base64,(.+)$/i);
+    if (!match) throw new Error('Invalid image data URL for Gemini');
+    parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
+    parts.push({
+      text: `Redesign this room as: ${prompt} Preserve the original room's layout, window placement, doors, and structural features. Replace furniture, decor, wall colors, flooring, and lighting to match the new style. Output only the redesigned photo.`,
+    });
+  } else {
+    parts.push({ text: prompt });
+  }
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Gemini error: ${res.status} ${await res.text()}`);
+  }
+
+  const data = await res.json() as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          inlineData?: { mimeType: string; data: string };
+          inline_data?: { mime_type: string; data: string };
+        }>;
+      };
+    }>;
+  };
+
+  const outParts = data.candidates?.[0]?.content?.parts ?? [];
+  for (const p of outParts) {
+    const inline = p.inlineData ?? p.inline_data;
+    if (inline?.data) {
+      const mime =
+        (p.inlineData?.mimeType) ?? (p.inline_data?.mime_type) ?? 'image/png';
+      // Return as data URL — the frontend <img> can render this directly.
+      return `data:${mime};base64,${inline.data}`;
+    }
+  }
+  throw new Error('Gemini returned no image');
+}
+
+// ============================================================
+// POLLINATIONS.AI (zero setup, completely free, unlimited)
+// No API key, no signup. Text-to-image only — the uploaded room is
+// NOT used; this generates a generic room matching the style/type.
+// https://pollinations.ai/
+// ============================================================
+async function pollinationsGenerate(prompt: string, _style: string): Promise<string> {
+  // Pollinations generates on first GET; returning the URL lets the browser
+  // fetch the image directly (saves backend bandwidth). Random seed avoids
+  // serving the same cached image for repeat generations.
+  const seed = Math.floor(Math.random() * 1_000_000);
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
+}
+
+// ============================================================
+// CLOUDFLARE WORKERS AI (free 10,000 neurons/day)
+// Real image-to-image using Stable Diffusion v1.5.
+// Setup:
+//   1. Sign up free at https://dash.cloudflare.com/sign-up (no card)
+//   2. Account ID: dashboard right sidebar
+//   3. API token: https://dash.cloudflare.com/profile/api-tokens
+//      Template "Workers AI" or custom with "Workers AI:Read + Edit".
+//   4. Add to .env:
+//        CLOUDFLARE_ACCOUNT_ID=...
+//        CLOUDFLARE_API_TOKEN=...
+// ============================================================
+async function cloudflareGenerate(
+  prompt: string,
+  _style: string,
+  initImage?: string | null
+): Promise<string> {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID not set in .env');
+  if (!apiToken) throw new Error('CLOUDFLARE_API_TOKEN not set in .env');
+
+  // Pick the model: img2img if we have an upload, else text-to-image SDXL.
+  const model = initImage
+    ? '@cf/runwayml/stable-diffusion-v1-5-img2img'
+    : '@cf/stabilityai/stable-diffusion-xl-base-1.0';
+
+  const body: Record<string, unknown> = { prompt };
+
+  if (initImage) {
+    // SD 1.5 img2img wants the raw base64 string (no "data:" prefix) in `image_b64`.
+    const match = initImage.match(/^data:image\/[a-z0-9.+-]+(?:;[^;,]+)*;base64,(.+)$/i);
+    if (!match) throw new Error('Invalid image data URL for Cloudflare');
+    body.image_b64 = match[1];
+    body.strength = 0.7;     // 0 = preserve original, 1 = ignore. 0.7 keeps layout, lets style dominate.
+    body.guidance = 7.5;
+    body.num_steps = 20;     // SD 1.5 cap on Cloudflare
+  }
+
+  const res = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiToken}`,
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Cloudflare error: ${res.status} ${await res.text()}`);
+  }
+
+  // Cloudflare returns the PNG bytes directly. Convert to a data URL so the
+  // frontend <img> can render it without a follow-up fetch.
+  const buf = Buffer.from(await res.arrayBuffer());
+  return `data:image/png;base64,${buf.toString('base64')}`;
 }
 
 // ============================================================
@@ -268,7 +494,8 @@ export function buildPrompt(roomType: string, designStyle: string): string {
 
 export async function generateRoomMakeover(
   roomType: string,
-  designStyle: string
+  designStyle: string,
+  uploadedImage?: string | null
 ): Promise<{ imageUrl: string; provider: string; cost: string }> {
   const prompt = buildPrompt(roomType, designStyle);
 
@@ -289,8 +516,20 @@ export async function generateRoomMakeover(
       cost = '$0.01-0.05';
       break;
     case 'leonardo':
-      imageUrl = await leonardoGenerate(prompt, designStyle);
+      imageUrl = await leonardoGenerate(prompt, designStyle, uploadedImage);
       cost = 'Free-150/day';
+      break;
+    case 'gemini':
+      imageUrl = await geminiGenerate(prompt, designStyle, uploadedImage);
+      cost = 'Free ~1500/day';
+      break;
+    case 'pollinations':
+      imageUrl = await pollinationsGenerate(prompt, designStyle);
+      cost = 'Free unlimited';
+      break;
+    case 'cloudflare':
+      imageUrl = await cloudflareGenerate(prompt, designStyle, uploadedImage);
+      cost = 'Free 10k neurons/day';
       break;
     case 'mock':
     default:
