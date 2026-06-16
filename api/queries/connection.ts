@@ -8,6 +8,9 @@ const fullSchema = { ...schema, ...relations };
 let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
 
 export function getDb() {
+  if (!env.databaseUrl) {
+    throw new Error("DATABASE_NOT_CONFIGURED");
+  }
   if (!instance) {
     instance = drizzle(env.databaseUrl, {
       mode: "planetscale",
@@ -15,4 +18,8 @@ export function getDb() {
     });
   }
   return instance;
+}
+
+export function isDbConfigured(): boolean {
+  return Boolean(env.databaseUrl);
 }
