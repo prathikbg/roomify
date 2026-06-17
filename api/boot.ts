@@ -35,7 +35,28 @@ if (env.isProduction) {
 
   const port = parseInt(process.env.PORT || "3000");
   const hostname = process.env.HOST || "0.0.0.0";
-  serve({ fetch: app.fetch, port, hostname }, () => {
-    console.log(`Server running on http://${hostname}:${port}/`);
+
+  console.log("[boot] starting Roomify server");
+  console.log("[boot] NODE_ENV          =", process.env.NODE_ENV);
+  console.log("[boot] PORT (env)        =", process.env.PORT ?? "(unset → using 3000)");
+  console.log("[boot] HOST (env)        =", process.env.HOST ?? "(unset → using 0.0.0.0)");
+  console.log("[boot] bound port        =", port);
+  console.log("[boot] bound hostname    =", hostname);
+  console.log("[boot] DATABASE_URL set? =", Boolean(process.env.DATABASE_URL));
+  console.log("[boot] AI_PROVIDER       =", process.env.AI_PROVIDER ?? "(unset)");
+  console.log("[boot] node version      =", process.version);
+  console.log("[boot] cwd               =", process.cwd());
+
+  process.on("uncaughtException", (err) => {
+    console.error("[boot] uncaughtException:", err);
+  });
+  process.on("unhandledRejection", (reason) => {
+    console.error("[boot] unhandledRejection:", reason);
+  });
+  process.on("SIGTERM", () => console.log("[boot] received SIGTERM"));
+  process.on("SIGINT", () => console.log("[boot] received SIGINT"));
+
+  serve({ fetch: app.fetch, port, hostname }, (info) => {
+    console.log(`[boot] LISTENING on http://${hostname}:${port}/ (actual: ${info.address}:${info.port})`);
   });
 }
