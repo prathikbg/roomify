@@ -72,7 +72,17 @@ export default function StepResults() {
     // accepted. Until we host the composite, send users to their pin-builder with
     // the description prefilled — they paste their downloaded image there.
     const shareUrl = `https://www.pinterest.com/pin-builder/?description=${encodeURIComponent(pinDescription)}&url=${encodeURIComponent('https://roomify.online')}`;
-    window.open(shareUrl, '_blank', 'noopener,noreferrer,width=750,height=720');
+    // Ad networks (Adcash autotag, etc.) can hijack window.open(). Fall back to
+    // an anchor click so the user always gets to Pinterest even if the popup is
+    // intercepted or blocked.
+    const opened = window.open(shareUrl, '_blank', 'noopener,noreferrer,width=750,height=720');
+    if (!opened || opened.closed || typeof opened.closed === 'undefined') {
+      const a = document.createElement('a');
+      a.href = shareUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.click();
+    }
   };
 
   const handleCopyDescription = async () => {
