@@ -32,7 +32,21 @@ app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
 
-if (env.isProduction) {
+// Start the HTTP server when this file is the process entry point (i.e. run via
+// `node dist/index.js` on Hostinger). The vite dev server imports `app` as a
+// module rather than executing the bundle, so this guard keeps `npm run dev`
+// from double-binding the port. Relying on NODE_ENV alone is fragile — Hostinger
+// does not always set it, which silently exits the process and produces 503s.
+const isEntryPoint = (() => {
+  try {
+    const argvUrl = process.argv[1] ? new URL(`file://${process.argv[1]}`).href : "";
+    return import.meta.url === argvUrl;
+  } catch {
+    return false;
+  }
+})();
+
+if (env.isProduction || isEntryPoint) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
