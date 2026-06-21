@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { trpc } from '@/providers/trpc';
 import type { DesignStyle } from '../types/makeover';
 
 const ROOM_LABELS: Record<string, string> = {
@@ -82,10 +81,6 @@ export default function TrendsPage() {
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [copiedHex, setCopiedHex] = useState<string | null>(null);
 
-  // Backend refresh is fire-and-forget; the editorial dataset is the
-  // source of truth on the page so visitors always see a polished view.
-  const refreshMutation = trpc.trends.refresh.useMutation();
-
   const hero = RISING[0];
   const tier2 = RISING.slice(1, 4);
 
@@ -132,9 +127,6 @@ export default function TrendsPage() {
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => navigate('/')} style={btnGhost}>Back</button>
-            <button onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending} style={{ ...btnGhost, opacity: refreshMutation.isPending ? 0.5 : 1 }}>
-              {refreshMutation.isPending ? 'Refreshing…' : 'Refresh feed'}
-            </button>
           </div>
         </div>
       </header>

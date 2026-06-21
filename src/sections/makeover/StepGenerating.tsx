@@ -1,23 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useMakeover } from '../../contexts/MakeoverContext';
-import { trpc } from '@/providers/trpc';
+import {
+  generateRoomMakeover,
+  getAiStatus,
+  getColorPalette,
+  getFurnitureRecommendations,
+} from '@/lib/aiClient';
 
 export default function StepGenerating() {
   const { state, dispatch } = useMakeover();
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('Analyzing your room...');
 
-  // tRPC mutations/queries
-  const generateMutation = trpc.ai.generate.useMutation();
-  const paletteQuery = trpc.ai.getPalette.useQuery(
-    { designStyle: state.designStyle || 'modern' },
-    { enabled: false }
-  );
-  const furnitureQuery = trpc.ai.getFurniture.useQuery(
-    { roomType: state.roomType || 'living-room' },
-    { enabled: false }
-  );
-  const aiStatus = trpc.ai.status.useQuery();
+  const aiStatus = getAiStatus();
 
   useEffect(() => {
     if (!state.roomType || !state.designStyle || state.isGenerating || state.generatedImage) return;
@@ -25,51 +20,46 @@ export default function StepGenerating() {
     dispatch({ type: 'SET_GENERATING', payload: true });
 
     const runGeneration = async () => {
-      // Step 1: Show AI status
-      const isMock = aiStatus.data?.isMock ?? true;
+      const isMock = aiStatus.isMock;
 
       setStatusText('Analyzing your room layout...');
       setProgress(10);
       await delay(600);
 
-      // Step 2: Call backend AI API
       setStatusText(`Applying ${state.designStyle} style with ${isMock ? 'demo' : 'AI'}...`);
       setProgress(30);
 
-      const result = await generateMutation.mutateAsync({
-        roomType: state.roomType!,
-        designStyle: state.designStyle!,
-      });
-
-      if (result.success && result.imageUrl) {
-        dispatch({ type: 'SET_GENERATED_IMAGE', payload: result.imageUrl });
-        setStatusText(isMock ? 'Design complete (demo mode)' : `Design complete (${result.provider})`);
-      } else {
+      let imageUrl = '';
+      let provider = aiStatus.provider;
+      try {
+        const result = await generateRoomMakeover(state.roomType!, state.designStyle!);
+        imageUrl = result.imageUrl;
+        provider = result.provider;
+        dispatch({ type: 'SET_GENERATED_IMAGE', payload: imageUrl });
+        setStatusText(`Design complete (${provider})`);
+      } catch {
         // Fallback to uploaded image
-        dispatch({ type: 'SET_GENERATED_IMAGE', payload: state.uploadedImage || '' });
+        imageUrl = state.uploadedImage || '';
+        dispatch({ type: 'SET_GENERATED_IMAGE', payload: imageUrl });
         setStatusText('Using original image (fallback)');
       }
       setProgress(60);
 
-      // Step 3: Fetch color palette from backend
       setStatusText('Extracting color palette...');
       setProgress(75);
-      const palette = await paletteQuery.refetch().then((r) => r.data ?? []);
+      const palette = getColorPalette(state.designStyle!);
       await delay(400);
 
-      // Step 4: Fetch furniture recommendations from backend
       setStatusText('Finding furniture recommendations...');
       setProgress(85);
-      const furniture = await furnitureQuery.refetch().then((r) => r.data);
+      const furniture = getFurnitureRecommendations(state.roomType!);
       await delay(400);
 
-      // Step 5: Complete
       setProgress(100);
       setStatusText('Your dream room is ready!');
       await delay(500);
 
-      // Convert furniture items to detected items format
-      const detectedItems = (furniture?.items ?? []).map((item) => ({
+      const detectedItems = furniture.items.map((item) => ({
         name: item.name.split(' ').slice(-2).join(' '),
         matchedProduct: {
           name: item.name,
@@ -83,7 +73,7 @@ export default function StepGenerating() {
         payload: {
           detectedItems,
           colorPalette: palette,
-          pinterestImage: result.imageUrl || state.uploadedImage || '',
+          pinterestImage: imageUrl || state.uploadedImage || '',
         },
       });
 
@@ -92,14 +82,13 @@ export default function StepGenerating() {
     };
 
     runGeneration().catch(() => {
-      // On error, still move forward with fallback
       dispatch({ type: 'SET_GENERATED_IMAGE', payload: state.uploadedImage || '' });
       dispatch({ type: 'SET_GENERATING', payload: false });
       dispatch({ type: 'NEXT_STEP' });
     });
   }, []);
 
-  const isMock = aiStatus.data?.isMock ?? true;
+  const isMock = aiStatus.isMock;
 
   return (
     <div
@@ -164,7 +153,7 @@ export default function StepGenerating() {
           border: `1px solid ${isMock ? 'rgba(255,255,255,0.1)' : 'rgba(76,175,80,0.3)'}`,
         }}
       >
-        {isMock ? 'Demo Mode - Pre-generated images' : `AI Active - ${aiStatus.data?.provider || 'AI'}`}
+        {isMock ? 'Demo Mode - Pre-generated images' : `AI Active - ${aiStatus.provider}`}
       </div>
 
       {/* Progress Bar */}
