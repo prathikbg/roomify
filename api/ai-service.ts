@@ -289,14 +289,9 @@ async function pollinationsGenerate(prompt: string, _style: string): Promise<str
 
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
 
-  // HEAD to confirm the image is reachable; pollinations generates on first GET
-  // and may take a few seconds, but the URL itself is stable and the browser
-  // can fetch it directly so we just return it.
-  const head = await fetch(url, { method: 'GET' });
-  if (!head.ok) {
-    throw new Error(`Pollinations error ${head.status}: ${head.statusText}`);
-  }
-
+  // Return the URL immediately; the browser fetches the image directly from
+  // pollinations.ai. Server-side fetching here would burn our ~30s proxy
+  // budget while pollinations generates the image (5-15s typical).
   return url;
 }
 
@@ -380,6 +375,21 @@ function buildProviderChain(): ProviderName[] {
   return Array.from(new Set(chain));
 }
 
+// Per-provider hard timeout so a hung upstream can't eat the request budget.
+// Hostinger's reverse proxy gives up around 30s; we keep each attempt well below
+// that so the chain has time to fall through to pollinations / mock.
+const PROVIDER_TIMEOUT_MS = Number(process.env.AI_PROVIDER_TIMEOUT_MS || 18000);
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
 export async function generateRoomMakeover(
   roomType: string,
   designStyle: string
@@ -391,7 +401,7 @@ export async function generateRoomMakeover(
   for (const name of chain) {
     try {
       const { fn, cost } = providerFns[name];
-      const imageUrl = await fn(prompt, designStyle);
+      const imageUrl = await withTimeout(fn(prompt, designStyle), PROVIDER_TIMEOUT_MS, name);
       generationCount++;
       if (errors.length > 0) {
         // eslint-disable-next-line no-console
