@@ -90,8 +90,12 @@ export default function StyleDetailModal({ detail, onClose }: StyleDetailModalPr
         &times;
       </button>
 
-      {/* Scrollable content */}
-      <div ref={scrollRef} className="style-modal-scroll">
+      {/* Scrollable content
+          data-lenis-prevent: tells the global Lenis smooth-scroll instance to
+          ignore wheel/touch events inside this container, so the modal scrolls
+          natively from the first wheel tick instead of requiring a click to
+          transfer focus away from Lenis's window-level wheel listener. */}
+      <div ref={scrollRef} className="style-modal-scroll" data-lenis-prevent>
         {/* Hero Image */}
         <div style={{ position: 'relative', marginBottom: '2rem' }}>
           <img

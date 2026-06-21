@@ -1,58 +1,95 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useMakeover } from '../../contexts/MakeoverContext';
 import { designStyles, furnitureRecommendations } from '../../data/makeoverData';
 import { generatePinterestImage } from '../../utils/imageGenerator';
 
 export default function StepResults() {
   const { state, dispatch } = useMakeover();
-  const [sliderPosition, setSliderPosition] = useState(50);
-  const [isDragging, setIsDragging] = useState(false);
   const [showPinterest, setShowPinterest] = useState(false);
   const [pinterestUrl, setPinterestUrl] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
 
   const styleLabel = designStyles.find((s) => s.value === state.designStyle)?.label || '';
-
-  const handleMove = useCallback(
-    (clientX: number) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
-      const percent = (x / rect.width) * 100;
-      setSliderPosition(Math.max(2, Math.min(98, percent)));
-    },
-    []
-  );
-
-  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-  const handleMouseUp = useCallback(() => setIsDragging(false), []);
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (isDragging) handleMove(e.clientX);
-    },
-    [isDragging, handleMove]
-  );
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      handleMove(e.touches[0].clientX);
-    },
-    [handleMove]
-  );
-  const handleTrackClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.slider-handle')) return;
-    handleMove(e.clientX);
-  };
+  const pinTitle = `${styleLabel} Room Makeover`;
+  const pinDescription = `Transformed my space with Roomify AI — a ${styleLabel} ${state.roomType?.replace('-', ' ') || 'room'} redesign. Get your own AI room makeover at roomify.online`;
 
   const handleDownloadPinterest = async () => {
-    if (!state.uploadedImage || !state.generatedImage) return;
-    const title = `${styleLabel} Room Makeover`;
-    const url = await generatePinterestImage(state.uploadedImage, state.generatedImage, title, styleLabel);
-    setPinterestUrl(url);
+    if (!state.uploadedImage || !state.generatedImage) {
+      setPinError('Missing before/after images. Please regenerate your makeover.');
+      setShowPinterest(true);
+      return;
+    }
+    setPinError(null);
+    setPinLoading(true);
     setShowPinterest(true);
+    try {
+      const url = await generatePinterestImage(state.uploadedImage, state.generatedImage, pinTitle, styleLabel);
+      setPinterestUrl(url);
+    } catch (err) {
+      setPinError(err instanceof Error ? err.message : 'Could not build the pin image.');
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
+  // Convert a data: URL into a File so we can use the native share sheet on mobile.
+  const dataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    return new File([blob], filename, { type: blob.type || 'image/png' });
+  };
+
+  const handleNativeShare = async () => {
+    if (!pinterestUrl) return;
+    try {
+      const file = await dataUrlToFile(pinterestUrl, 'roomify-pin.png');
+      const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        await nav.share({ files: [file], title: pinTitle, text: pinDescription });
+        return;
+      }
+      if (navigator.share) {
+        await navigator.share({ title: pinTitle, text: pinDescription, url: 'https://roomify.online' });
+        return;
+      }
+      // Desktop fallback: trigger a download.
+      const a = document.createElement('a');
+      a.href = pinterestUrl;
+      a.download = 'roomify-pinterest-pin.png';
+      a.click();
+    } catch (err) {
+      // User cancelled or share failed — no UI noise needed unless it's a real error.
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setPinError(err.message);
+      }
+    }
+  };
+
+  const handlePinToPinterest = () => {
+    // Pinterest's pin-creator needs a public URL for the media; data: URLs aren't
+    // accepted. Until we host the composite, send users to their pin-builder with
+    // the description prefilled — they paste their downloaded image there.
+    const shareUrl = `https://www.pinterest.com/pin-builder/?description=${encodeURIComponent(pinDescription)}&url=${encodeURIComponent('https://roomify.online')}`;
+    window.open(shareUrl, '_blank', 'noopener,noreferrer,width=750,height=720');
+  };
+
+  const handleCopyDescription = async () => {
+    try {
+      await navigator.clipboard.writeText(pinDescription);
+      setCopyStatus('copied');
+      setTimeout(() => setCopyStatus('idle'), 1800);
+    } catch {
+      setPinError('Clipboard blocked by browser.');
+    }
+  };
+
+  const handleClosePinterest = () => {
+    setShowPinterest(false);
+    setPinterestUrl(null);
+    setPinError(null);
+    setCopyStatus('idle');
   };
 
   const getFurnitureItems = () => {
@@ -100,54 +137,30 @@ export default function StepResults() {
             lineHeight: 1.6,
           }}
         >
-          Drag the slider to compare your original room with the {styleLabel} redesign
+          Your original room above, the {styleLabel} redesign below — both shown in full
         </p>
       </div>
 
-      {/* Before/After Slider - Using <img> tags for full visibility */}
+      {/* Before/After stacked vertically — each image displayed at its natural
+          aspect ratio so the full frame is visible without cropping. */}
       <div
-        ref={containerRef}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleMouseUp}
-        onClick={handleTrackClick}
         style={{
-          position: 'relative',
           width: '100%',
           maxWidth: '800px',
           margin: '0 auto 3rem',
-          borderRadius: '12px',
-          overflow: 'hidden',
-          cursor: isDragging ? 'grabbing' : 'grab',
-          userSelect: 'none',
-          touchAction: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
         }}
       >
-        {/* After image (full width, bottom layer) */}
-        <img
-          src={state.generatedImage || ''}
-          alt={`${styleLabel} redesigned room`}
-          draggable={false}
-          style={{
-            width: '100%',
-            display: 'block',
-            aspectRatio: '3/2',
-            objectFit: 'cover',
-          }}
-        />
-
-        {/* Before image (clipped overlay) */}
+        {/* Before */}
         <div
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: `${sliderPosition}%`,
-            height: '100%',
+            position: 'relative',
+            borderRadius: '12px',
             overflow: 'hidden',
-            borderRight: '2px solid #f25b29',
+            background: '#0a0a0a',
+            border: '1px solid rgba(255,255,255,0.08)',
           }}
         >
           <img
@@ -155,92 +168,67 @@ export default function StepResults() {
             alt="Original room"
             draggable={false}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: `${10000 / sliderPosition}px`,
-              maxWidth: 'none',
-              height: '100%',
-              objectFit: 'cover',
+              width: '100%',
+              height: 'auto',
+              display: 'block',
             }}
           />
-        </div>
-
-        {/* Slider Handle */}
-        <div
-          className="slider-handle"
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleMouseDown}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: `${sliderPosition}%`,
-            transform: 'translateX(-50%)',
-            width: '40px',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'grab',
-            zIndex: 10,
-          }}
-        >
           <div
             style={{
-              width: '40px',
-              height: '40px',
-              background: '#f25b29',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-              pointerEvents: 'none',
+              position: 'absolute',
+              top: '16px',
+              left: '16px',
+              background: 'rgba(0,0,0,0.65)',
+              padding: '6px 14px',
+              borderRadius: '4px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '11px',
+              color: '#fff',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-              <polyline points="15 18 9 12 15 6" />
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
+            Before
           </div>
         </div>
 
-        {/* Labels */}
+        {/* After */}
         <div
           style={{
-            position: 'absolute',
-            top: '16px',
-            left: '16px',
-            background: 'rgba(0,0,0,0.6)',
-            padding: '6px 14px',
-            borderRadius: '4px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            color: '#fff',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            zIndex: 5,
+            position: 'relative',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            background: '#0a0a0a',
+            border: '1px solid rgba(242,91,41,0.25)',
           }}
         >
-          Before
-        </div>
-        <div
-          style={{
-            position: 'absolute',
-            top: '16px',
-            right: '16px',
-            background: 'rgba(242,91,41,0.8)',
-            padding: '6px 14px',
-            borderRadius: '4px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            color: '#fff',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            zIndex: 5,
-          }}
-        >
-          After — {styleLabel}
+          <img
+            src={state.generatedImage || ''}
+            alt={`${styleLabel} redesigned room`}
+            draggable={false}
+            style={{
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: '16px',
+              left: '16px',
+              background: 'rgba(242,91,41,0.85)',
+              padding: '6px 14px',
+              borderRadius: '4px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '11px',
+              color: '#fff',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+            }}
+          >
+            After — {styleLabel}
+          </div>
         </div>
       </div>
 
@@ -443,6 +431,7 @@ export default function StepResults() {
       >
         <button
           onClick={handleDownloadPinterest}
+          disabled={pinLoading}
           style={{
             fontFamily: 'var(--font-sans)',
             fontSize: '13px',
@@ -452,21 +441,36 @@ export default function StepResults() {
             padding: '14px 32px',
             borderRadius: '4px',
             border: 'none',
-            cursor: 'pointer',
-            background: '#E60023',
+            cursor: pinLoading ? 'wait' : 'pointer',
+            background: pinLoading ? '#9a1218' : '#E60023',
             color: '#ffffff',
             transition: 'all 0.3s ease',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
+            opacity: pinLoading ? 0.8 : 1,
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = '#cc001f'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = '#E60023'; }}
+          onMouseEnter={(e) => { if (!pinLoading) e.currentTarget.style.background = '#cc001f'; }}
+          onMouseLeave={(e) => { if (!pinLoading) e.currentTarget.style.background = '#E60023'; }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 0C5.373 0 0 5.372 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738.098.119.112.224.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.631-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12 0-6.628-5.373-12-12-12z" />
-          </svg>
-          Create Pinterest Pin
+          {pinLoading ? (
+            <span
+              style={{
+                width: 14,
+                height: 14,
+                border: '2px solid rgba(255,255,255,0.35)',
+                borderTopColor: '#fff',
+                borderRadius: '50%',
+                display: 'inline-block',
+                animation: 'spin 0.8s linear infinite',
+              }}
+            />
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.373 0 0 5.372 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738.098.119.112.224.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.631-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12 0-6.628-5.373-12-12-12z" />
+            </svg>
+          )}
+          {pinLoading ? 'Building Pin…' : 'Create Pinterest Pin'}
         </button>
         <button
           onClick={() => dispatch({ type: 'RESET' })}
@@ -498,80 +502,201 @@ export default function StepResults() {
       </div>
 
       {/* Pinterest Preview Modal */}
-      {showPinterest && pinterestUrl && (
+      {showPinterest && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.85)',
+            background: 'rgba(0,0,0,0.88)',
             zIndex: 1000,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            padding: '2rem',
+            padding: '2rem 1rem',
+            overflowY: 'auto',
           }}
-          onClick={() => setShowPinterest(false)}
+          onClick={handleClosePinterest}
+          data-lenis-prevent
         >
           <div
             style={{
-              maxWidth: '500px',
+              maxWidth: '520px',
               width: '100%',
               textAlign: 'center',
+              marginTop: '2vh',
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '11px',
+                letterSpacing: '0.15em',
+                color: '#E60023',
+                textTransform: 'uppercase',
+              }}
+            >
+              Step 1 of 3 — Save · Share · Pin
+            </span>
             <h3
               style={{
                 fontFamily: 'var(--font-serif)',
-                fontSize: '1.5rem',
+                fontSize: '1.75rem',
                 color: '#fff',
-                marginBottom: '1.5rem',
+                margin: '0.75rem 0 0.5rem',
+                fontWeight: 400,
               }}
             >
-              Your Pinterest Pin is Ready
+              {pinLoading ? 'Building your pin…' : pinError ? 'Something went wrong' : 'Your Pinterest pin is ready'}
             </h3>
-            <img
-              src={pinterestUrl}
-              alt="Pinterest Pin"
+            <p
               style={{
-                width: '100%',
-                borderRadius: '8px',
+                fontFamily: 'var(--font-sans)',
+                fontSize: '13px',
+                color: '#b0b2b5',
                 marginBottom: '1.5rem',
+                lineHeight: 1.6,
               }}
-            />
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <a
-                href={pinterestUrl}
-                download="roomify-pinterest-pin.png"
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '13px',
-                  fontWeight: 400,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                  padding: '12px 28px',
-                  borderRadius: '4px',
-                  border: 'none',
-                  textDecoration: 'none',
-                  display: 'inline-block',
-                  background: '#f25b29',
-                  color: '#ffffff',
-                  cursor: 'pointer',
-                }}
-              >
-                Download Image
-              </a>
+            >
+              {pinLoading
+                ? 'Combining your before & after into a vertical 1000×1500 pin.'
+                : pinError
+                  ? pinError
+                  : 'Download the pin, then send yourself to Pinterest to publish it.'}
+            </p>
+
+            {pinLoading && (
+              <div style={{ padding: '3rem 0' }}>
+                <span
+                  style={{
+                    width: 36,
+                    height: 36,
+                    border: '2px solid rgba(255,255,255,0.1)',
+                    borderTopColor: '#E60023',
+                    borderRadius: '50%',
+                    display: 'inline-block',
+                    animation: 'spin 0.9s linear infinite',
+                  }}
+                />
+              </div>
+            )}
+
+            {!pinLoading && pinterestUrl && (
+              <>
+                <img
+                  src={pinterestUrl}
+                  alt="Pinterest Pin Preview"
+                  style={{
+                    width: '100%',
+                    maxWidth: '380px',
+                    borderRadius: '8px',
+                    marginBottom: '1.5rem',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+                  }}
+                />
+
+                {/* Three-step share row */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr',
+                    gap: '10px',
+                    marginBottom: '1rem',
+                  }}
+                >
+                  <a
+                    href={pinterestUrl}
+                    download="roomify-pinterest-pin.png"
+                    style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      padding: '14px 24px',
+                      borderRadius: '4px',
+                      border: 'none',
+                      textDecoration: 'none',
+                      background: '#f25b29',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    1 · Download Pin Image
+                  </a>
+                  <button
+                    onClick={handlePinToPinterest}
+                    style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      padding: '14px 24px',
+                      borderRadius: '4px',
+                      border: 'none',
+                      background: '#E60023',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    2 · Open Pinterest & Paste
+                  </button>
+                  <button
+                    onClick={handleCopyDescription}
+                    style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      padding: '14px 24px',
+                      borderRadius: '4px',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      background: 'transparent',
+                      color: copyStatus === 'copied' ? '#7fffa1' : '#ffffff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {copyStatus === 'copied' ? '✓ Description Copied' : '3 · Copy Description'}
+                  </button>
+                </div>
+
+                {/* Secondary: native share for mobile */}
+                {typeof navigator !== 'undefined' && 'share' in navigator && (
+                  <button
+                    onClick={handleNativeShare}
+                    style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '12px',
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      padding: '10px 20px',
+                      borderRadius: '4px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#b0b2b5',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Or use device share sheet
+                  </button>
+                )}
+              </>
+            )}
+
+            <div style={{ marginTop: '1.5rem' }}>
               <button
-                onClick={() => setShowPinterest(false)}
+                onClick={handleClosePinterest}
                 style={{
                   fontFamily: 'var(--font-sans)',
-                  fontSize: '13px',
-                  fontWeight: 400,
-                  textTransform: 'uppercase',
+                  fontSize: '12px',
                   letterSpacing: '0.12em',
-                  padding: '12px 28px',
+                  textTransform: 'uppercase',
+                  padding: '10px 24px',
                   borderRadius: '4px',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: '1px solid rgba(255,255,255,0.15)',
                   background: 'transparent',
                   color: '#b0b2b5',
                   cursor: 'pointer',

@@ -19,7 +19,7 @@
  */
 
 // Provider selection from env
-const PROVIDER = process.env.AI_PROVIDER || 'mock'; // 'mock' | 'openai' | 'stability' | 'replicate' | 'leonardo'
+const PROVIDER = process.env.AI_PROVIDER || 'mock'; // 'mock' | 'openai' | 'stability' | 'replicate' | 'leonardo' | 'cloudflare'
 
 // Cost tracking (per image generated)
 let generationCount = 0;
@@ -215,6 +215,59 @@ async function leonardoGenerate(prompt: string, _style: string): Promise<string>
 }
 
 // ============================================================
+// CLOUDFLARE WORKERS AI (Free tier - 10k requests/day)
+// Model: @cf/black-forest-labs/flux-1-schnell (fast text-to-image)
+// Docs: https://developers.cloudflare.com/workers-ai/models/
+// ============================================================
+async function cloudflareGenerate(prompt: string, _style: string): Promise<string> {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID not set in .env');
+  if (!apiToken) throw new Error('CLOUDFLARE_API_TOKEN not set in .env');
+
+  const model = process.env.CLOUDFLARE_AI_MODEL || '@cf/black-forest-labs/flux-1-schnell';
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiToken}`,
+    },
+    body: JSON.stringify({
+      prompt,
+      steps: 4, // flux-schnell is optimized for 4 steps
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => response.statusText);
+    throw new Error(`Cloudflare AI error ${response.status}: ${text.slice(0, 200)}`);
+  }
+
+  // Flux models return JSON with base64 image; SDXL models return raw binary.
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    const data = (await response.json()) as {
+      result?: { image?: string };
+      success?: boolean;
+      errors?: Array<{ message: string }>;
+    };
+    if (!data.success || !data.result?.image) {
+      const msg = data.errors?.[0]?.message || 'no image in response';
+      throw new Error(`Cloudflare AI failed: ${msg}`);
+    }
+    return `data:image/jpeg;base64,${data.result.image}`;
+  }
+
+  // Binary PNG fallback (SDXL-lightning etc.)
+  const buffer = await response.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString('base64');
+  return `data:image/png;base64,${base64}`;
+}
+
+// ============================================================
 // PROMPT BUILDER
 // ============================================================
 
@@ -291,6 +344,10 @@ export async function generateRoomMakeover(
     case 'leonardo':
       imageUrl = await leonardoGenerate(prompt, designStyle);
       cost = 'Free-150/day';
+      break;
+    case 'cloudflare':
+      imageUrl = await cloudflareGenerate(prompt, designStyle);
+      cost = 'Free-10k/day';
       break;
     case 'mock':
     default:
