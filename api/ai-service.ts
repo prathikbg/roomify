@@ -19,7 +19,7 @@
  */
 
 // Provider selection from env
-const PROVIDER = process.env.AI_PROVIDER || 'mock'; // 'mock' | 'openai' | 'stability' | 'replicate' | 'leonardo' | 'cloudflare'
+const PROVIDER = process.env.AI_PROVIDER || 'mock'; // 'mock' | 'openai' | 'stability' | 'replicate' | 'leonardo' | 'cloudflare' | 'pollinations'
 
 // Cost tracking (per image generated)
 let generationCount = 0;
@@ -268,6 +268,39 @@ async function cloudflareGenerate(prompt: string, _style: string): Promise<strin
 }
 
 // ============================================================
+// POLLINATIONS.AI (Free, no API key required)
+// Docs: https://github.com/pollinations/pollinations/blob/master/APIDOCS.md
+// Generates via GET to https://image.pollinations.ai/prompt/{prompt}
+// ============================================================
+async function pollinationsGenerate(prompt: string, _style: string): Promise<string> {
+  const model = process.env.POLLINATIONS_MODEL || 'flux';
+  const width = Number(process.env.POLLINATIONS_WIDTH || 1024);
+  const height = Number(process.env.POLLINATIONS_HEIGHT || 1024);
+  const seed = Math.floor(Math.random() * 1_000_000);
+
+  const params = new URLSearchParams({
+    model,
+    width: String(width),
+    height: String(height),
+    seed: String(seed),
+    nologo: 'true',
+    enhance: 'true',
+  });
+
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
+
+  // HEAD to confirm the image is reachable; pollinations generates on first GET
+  // and may take a few seconds, but the URL itself is stable and the browser
+  // can fetch it directly so we just return it.
+  const head = await fetch(url, { method: 'GET' });
+  if (!head.ok) {
+    throw new Error(`Pollinations error ${head.status}: ${head.statusText}`);
+  }
+
+  return url;
+}
+
+// ============================================================
 // PROMPT BUILDER
 // ============================================================
 
@@ -319,45 +352,61 @@ export function buildPrompt(roomType: string, designStyle: string): string {
 // MAIN GENERATE FUNCTION
 // ============================================================
 
+type ProviderName = 'openai' | 'stability' | 'replicate' | 'leonardo' | 'cloudflare' | 'pollinations' | 'mock';
+
+const providerFns: Record<ProviderName, { fn: (p: string, s: string) => Promise<string>; cost: string }> = {
+  openai:       { fn: openaiGenerate,       cost: '$0.04-0.08' },
+  stability:    { fn: stabilityGenerate,    cost: '$0.01-0.02' },
+  replicate:    { fn: replicateGenerate,    cost: '$0.01-0.05' },
+  leonardo:     { fn: leonardoGenerate,     cost: 'Free-150/day' },
+  cloudflare:   { fn: cloudflareGenerate,   cost: 'Free-10k/day' },
+  pollinations: { fn: pollinationsGenerate, cost: 'Free (no key)' },
+  mock:         { fn: mockGenerate,         cost: '$0 (demo)' },
+};
+
+// Build the fallback chain: primary (from AI_PROVIDER) -> optional comma-separated
+// AI_FALLBACK list -> pollinations (always tried last as a keyless safety net).
+function buildProviderChain(): ProviderName[] {
+  const primary = (PROVIDER as ProviderName) in providerFns ? (PROVIDER as ProviderName) : 'mock';
+  const explicit = (process.env.AI_FALLBACK || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s): s is ProviderName => s in providerFns);
+
+  const chain: ProviderName[] = [primary, ...explicit];
+  if (primary !== 'pollinations' && !chain.includes('pollinations')) chain.push('pollinations');
+  if (!chain.includes('mock')) chain.push('mock');
+
+  return Array.from(new Set(chain));
+}
+
 export async function generateRoomMakeover(
   roomType: string,
   designStyle: string
 ): Promise<{ imageUrl: string; provider: string; cost: string }> {
   const prompt = buildPrompt(roomType, designStyle);
+  const chain = buildProviderChain();
+  const errors: string[] = [];
 
-  let imageUrl: string;
-  let cost: string;
-
-  switch (PROVIDER) {
-    case 'openai':
-      imageUrl = await openaiGenerate(prompt, designStyle);
-      cost = '$0.04-0.08';
-      break;
-    case 'stability':
-      imageUrl = await stabilityGenerate(prompt, designStyle);
-      cost = '$0.01-0.02';
-      break;
-    case 'replicate':
-      imageUrl = await replicateGenerate(prompt, designStyle);
-      cost = '$0.01-0.05';
-      break;
-    case 'leonardo':
-      imageUrl = await leonardoGenerate(prompt, designStyle);
-      cost = 'Free-150/day';
-      break;
-    case 'cloudflare':
-      imageUrl = await cloudflareGenerate(prompt, designStyle);
-      cost = 'Free-10k/day';
-      break;
-    case 'mock':
-    default:
-      imageUrl = await mockGenerate(prompt, designStyle);
-      cost = '$0 (demo)';
-      break;
+  for (const name of chain) {
+    try {
+      const { fn, cost } = providerFns[name];
+      const imageUrl = await fn(prompt, designStyle);
+      generationCount++;
+      if (errors.length > 0) {
+        // eslint-disable-next-line no-console
+        console.warn(`[ai] primary failed, served via fallback "${name}". errors: ${errors.join(' | ')}`);
+      }
+      return { imageUrl, provider: name, cost };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`${name}: ${msg}`);
+      // eslint-disable-next-line no-console
+      console.warn(`[ai] provider "${name}" failed: ${msg}`);
+    }
   }
 
-  generationCount++;
-  return { imageUrl, provider: PROVIDER, cost };
+  throw new Error(`All AI providers failed. ${errors.join(' | ')}`);
 }
 
 // ============================================================

@@ -507,7 +507,9 @@ export default function StepResults() {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.88)',
+            background: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'flex-start',
@@ -520,53 +522,89 @@ export default function StepResults() {
         >
           <div
             style={{
-              maxWidth: '520px',
+              maxWidth: '480px',
               width: '100%',
-              textAlign: 'center',
-              marginTop: '2vh',
+              background: '#121214',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '16px',
+              padding: '32px 28px',
+              boxShadow: '0 30px 80px rgba(0,0,0,0.65)',
+              position: 'relative',
+              marginTop: '4vh',
+              marginBottom: '4vh',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <span
+            {/* Close button (top-right) */}
+            <button
+              onClick={handleClosePinterest}
+              aria-label="Close"
               style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '11px',
-                letterSpacing: '0.15em',
-                color: '#E60023',
-                textTransform: 'uppercase',
-              }}
-            >
-              Step 1 of 3 — Save · Share · Pin
-            </span>
-            <h3
-              style={{
-                fontFamily: 'var(--font-serif)',
-                fontSize: '1.75rem',
-                color: '#fff',
-                margin: '0.75rem 0 0.5rem',
-                fontWeight: 400,
-              }}
-            >
-              {pinLoading ? 'Building your pin…' : pinError ? 'Something went wrong' : 'Your Pinterest pin is ready'}
-            </h3>
-            <p
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: '13px',
+                position: 'absolute',
+                top: 14,
+                right: 14,
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(255,255,255,0.04)',
                 color: '#b0b2b5',
-                marginBottom: '1.5rem',
-                lineHeight: 1.6,
+                fontSize: 18,
+                lineHeight: 1,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
               }}
             >
-              {pinLoading
-                ? 'Combining your before & after into a vertical 1000×1500 pin.'
-                : pinError
-                  ? pinError
-                  : 'Download the pin, then send yourself to Pinterest to publish it.'}
-            </p>
+              ×
+            </button>
+
+            {/* Header */}
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '10px',
+                  letterSpacing: '0.18em',
+                  color: '#E60023',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Step 1 of 3 · Save → Share → Pin
+              </span>
+              <h3
+                style={{
+                  fontFamily: 'var(--font-serif)',
+                  fontSize: '1.5rem',
+                  color: '#fff',
+                  margin: '0.5rem 0 0.5rem',
+                  fontWeight: 400,
+                  lineHeight: 1.3,
+                }}
+              >
+                {pinLoading ? 'Building your pin…' : pinError ? 'Something went wrong' : 'Your Pinterest pin is ready'}
+              </h3>
+              <p
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '13px',
+                  color: '#9a9c9f',
+                  margin: 0,
+                  lineHeight: 1.55,
+                }}
+              >
+                {pinLoading
+                  ? 'Combining your before & after into a 1000×1500 vertical pin.'
+                  : pinError
+                    ? pinError
+                    : 'Download the image, then open Pinterest to publish it.'}
+              </p>
+            </div>
 
             {pinLoading && (
-              <div style={{ padding: '3rem 0' }}>
+              <div style={{ padding: '2rem 0', textAlign: 'center' }}>
                 <span
                   style={{
                     width: 36,
@@ -583,43 +621,47 @@ export default function StepResults() {
 
             {!pinLoading && pinterestUrl && (
               <>
-                <img
-                  src={pinterestUrl}
-                  alt="Pinterest Pin Preview"
-                  style={{
-                    width: '100%',
-                    maxWidth: '380px',
-                    borderRadius: '8px',
-                    marginBottom: '1.5rem',
-                    boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-                  }}
-                />
-
-                {/* Three-step share row */}
+                {/* Pin preview — capped so the whole modal fits in view */}
                 <div
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr',
-                    gap: '10px',
-                    marginBottom: '1rem',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    marginBottom: '1.5rem',
                   }}
                 >
+                  <img
+                    src={pinterestUrl}
+                    alt="Pinterest Pin Preview"
+                    style={{
+                      width: '100%',
+                      maxWidth: '260px',
+                      maxHeight: '40vh',
+                      objectFit: 'contain',
+                      borderRadius: '8px',
+                      boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+                    }}
+                  />
+                </div>
+
+                {/* Three-step actions */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
                   <a
                     href={pinterestUrl}
                     download="roomify-pinterest-pin.png"
                     style={{
                       fontFamily: 'var(--font-sans)',
-                      fontSize: '13px',
+                      fontSize: '12px',
                       fontWeight: 500,
                       textTransform: 'uppercase',
                       letterSpacing: '0.12em',
-                      padding: '14px 24px',
+                      padding: '13px 20px',
                       borderRadius: '4px',
                       border: 'none',
                       textDecoration: 'none',
                       background: '#f25b29',
                       color: '#ffffff',
                       cursor: 'pointer',
+                      textAlign: 'center',
                     }}
                   >
                     1 · Download Pin Image
@@ -628,11 +670,11 @@ export default function StepResults() {
                     onClick={handlePinToPinterest}
                     style={{
                       fontFamily: 'var(--font-sans)',
-                      fontSize: '13px',
+                      fontSize: '12px',
                       fontWeight: 500,
                       textTransform: 'uppercase',
                       letterSpacing: '0.12em',
-                      padding: '14px 24px',
+                      padding: '13px 20px',
                       borderRadius: '4px',
                       border: 'none',
                       background: '#E60023',
@@ -646,13 +688,13 @@ export default function StepResults() {
                     onClick={handleCopyDescription}
                     style={{
                       fontFamily: 'var(--font-sans)',
-                      fontSize: '13px',
+                      fontSize: '12px',
                       fontWeight: 500,
                       textTransform: 'uppercase',
                       letterSpacing: '0.12em',
-                      padding: '14px 24px',
+                      padding: '13px 20px',
                       borderRadius: '4px',
-                      border: '1px solid rgba(255,255,255,0.2)',
+                      border: '1px solid rgba(255,255,255,0.18)',
                       background: 'transparent',
                       color: copyStatus === 'copied' ? '#7fffa1' : '#ffffff',
                       cursor: 'pointer',
@@ -662,49 +704,30 @@ export default function StepResults() {
                   </button>
                 </div>
 
-                {/* Secondary: native share for mobile */}
+                {/* Native share — mobile only */}
                 {typeof navigator !== 'undefined' && 'share' in navigator && (
-                  <button
-                    onClick={handleNativeShare}
-                    style={{
-                      fontFamily: 'var(--font-sans)',
-                      fontSize: '12px',
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      padding: '10px 20px',
-                      borderRadius: '4px',
-                      border: 'none',
-                      background: 'transparent',
-                      color: '#b0b2b5',
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                    }}
-                  >
-                    Or use device share sheet
-                  </button>
+                  <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                    <button
+                      onClick={handleNativeShare}
+                      style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: '11px',
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        padding: '6px 12px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#9a9c9f',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      Or use device share sheet
+                    </button>
+                  </div>
                 )}
               </>
             )}
-
-            <div style={{ marginTop: '1.5rem' }}>
-              <button
-                onClick={handleClosePinterest}
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '12px',
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  padding: '10px 24px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'transparent',
-                  color: '#b0b2b5',
-                  cursor: 'pointer',
-                }}
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       )}
