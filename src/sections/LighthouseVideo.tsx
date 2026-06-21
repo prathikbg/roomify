@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { lighthouseVideoConfig } from '../config';
-import { trpc } from '@/providers/trpc';
 import type { DesignStyle } from '../types/makeover';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -17,7 +16,6 @@ interface FeaturedTransformation {
   budget: string;
   image: string;
   description: string;
-  growthRate?: number;
 }
 
 const featuredTransformations: FeaturedTransformation[] = [
@@ -53,112 +51,12 @@ const featuredTransformations: FeaturedTransformation[] = [
   },
 ];
 
-// ── Live-trend → FeaturedTransformation mapping helpers ──────────────────
-// The aggregator emits free-form keywords/tags; we normalise them into the
-// small enum the /makeover wizard accepts so a click pre-selects the style.
-const STYLE_TO_DESIGN: Record<string, DesignStyle> = {
-  japandi: 'japandi', zen: 'japandi',
-  modern: 'modern', minimalist: 'modern', 'mid-century': 'modern', mid: 'modern', playful: 'modern', contemporary: 'modern',
-  scandinavian: 'scandinavian', coastal: 'scandinavian', biophilic: 'scandinavian', farmhouse: 'scandinavian',
-  luxury: 'luxury', 'art deco': 'luxury', french: 'luxury',
-  boho: 'boho', moroccan: 'boho', tropical: 'boho', bohemian: 'boho',
-  industrial: 'industrial',
-  traditional: 'traditional-indian', indian: 'traditional-indian',
-  'smart home': 'smart-home', smart: 'smart-home',
-};
-
-const ROOM_LABELS: Record<string, string> = {
-  bedroom: 'Bedroom', 'living-room': 'Living Room', kitchen: 'Kitchen',
-  bathroom: 'Bathroom', 'home-office': 'Home Office', 'dining-room': 'Dining Room',
-  'kids-room': 'Kids Room',
-};
-
-function titleCase(s: string): string {
-  return s.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function resolveDesignStyle(tag: string, keyword: string): DesignStyle {
-  const t = (tag || '').toLowerCase().trim();
-  const k = (keyword || '').toLowerCase();
-  if (STYLE_TO_DESIGN[t]) return STYLE_TO_DESIGN[t];
-  for (const needle of Object.keys(STYLE_TO_DESIGN)) {
-    if (k.includes(needle)) return STYLE_TO_DESIGN[needle];
-  }
-  return 'modern';
-}
-
-function resolveImage(sampleImage: string | null | undefined, keyword: string, tag: string): string {
-  if (sampleImage) return sampleImage;
-  const kw = (keyword || '').toLowerCase();
-  const t = (tag || '').toLowerCase();
-  const map: Array<[string, string]> = [
-    ['japandi', 'zen.jpg'], ['zen', 'zen.jpg'],
-    ['boho', 'moroccan.jpg'], ['moroccan', 'moroccan.jpg'],
-    ['scandinavian', 'coastal.jpg'], ['coastal', 'coastal.jpg'],
-    ['luxury', 'artdeco.jpg'], ['art deco', 'artdeco.jpg'],
-    ['industrial', 'midcentury.jpg'], ['mid', 'midcentury.jpg'],
-    ['french', 'frenchcountry.jpg'], ['farmhouse', 'farmhouse.jpg'],
-    ['tropical', 'tropical.jpg'], ['traditional', 'mediterranean.jpg'],
-    ['mediterranean', 'mediterranean.jpg'], ['rustic', 'rustic.jpg'],
-    ['modern', 'contemporary.jpg'],
-  ];
-  for (const [needle, file] of map) {
-    if (kw.includes(needle) || t.includes(needle)) return `images/gallery/${file}`;
-  }
-  return 'images/gallery/item1.jpg';
-}
-
-function budgetForScore(score: number): string {
-  if (score >= 85) return 'Rs.50,000 - Rs.1,00,000';
-  if (score >= 70) return 'Rs.25,000 - Rs.50,000';
-  return 'Rs.10,000 - Rs.25,000';
-}
-
-interface TrendLike {
-  keyword: string;
-  score: number;
-  growthRate: number;
-  roomCategory: string;
-  styleTag: string;
-  sampleImage: string | null;
-}
-
-function trendToFeatured(t: TrendLike): FeaturedTransformation {
-  const style = resolveDesignStyle(t.styleTag, t.keyword);
-  return {
-    id: t.keyword.toLowerCase().replace(/\s+/g, '-'),
-    title: titleCase(t.keyword),
-    roomType: ROOM_LABELS[t.roomCategory] || titleCase(t.roomCategory.replace(/-/g, ' ')),
-    style,
-    styleLabel: t.styleTag ? titleCase(t.styleTag) : titleCase(style),
-    budget: budgetForScore(t.score),
-    image: resolveImage(t.sampleImage, t.keyword, t.styleTag),
-    description: `Trending across Reddit, Google, and Unsplash this week — score ${t.score}/100.`,
-    growthRate: t.growthRate,
-  };
-}
-
 export default function LighthouseVideo() {
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-
-  // Pull the top trends; if the backend is offline or returns nothing we
-  // silently fall back to the curated static cards above.
-  const trendsQuery = trpc.trends.current.useQuery(undefined, {
-    retry: 1,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { cards, isLive } = useMemo(() => {
-    const top = (trendsQuery.data?.topTrends ?? []).slice(0, 3);
-    if (top.length === 3) {
-      return { cards: top.map(trendToFeatured), isLive: true };
-    }
-    return { cards: featuredTransformations, isLive: false };
-  }, [trendsQuery.data]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -190,10 +88,10 @@ export default function LighthouseVideo() {
     );
 
     // Animate cards in with stagger
-    const cardEls = cardsRef.current?.querySelectorAll('.transform-card');
-    if (cardEls) {
+    const cards = cardsRef.current?.querySelectorAll('.transform-card');
+    if (cards) {
       tl.fromTo(
-        cardEls,
+        cards,
         { y: 30, opacity: 0, scale: 0.96 },
         { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: 'power2.out', stagger: 0.15 },
         '-=0.2'
@@ -203,7 +101,7 @@ export default function LighthouseVideo() {
     return () => {
       tl.kill();
     };
-  }, [cards]);
+  }, []);
 
   const handleTryStyle = (style: DesignStyle) => {
     sessionStorage.setItem('makeoverPresetStyle', style);
@@ -302,34 +200,6 @@ export default function LighthouseVideo() {
             >
               Click any style to start your makeover with that look pre-selected
             </p>
-
-            {/* Live-data indicator: green when API delivered fresh top-3 trends,
-                grey when we're showing the curated fallback. */}
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginTop: '14px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '10px',
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: isLive ? '#3fc97a' : 'rgba(255,255,255,0.4)',
-              }}
-            >
-              <span
-                style={{
-                  width: '7px',
-                  height: '7px',
-                  borderRadius: '50%',
-                  background: isLive ? '#3fc97a' : 'rgba(255,255,255,0.35)',
-                  boxShadow: isLive ? '0 0 8px rgba(63,201,122,0.6)' : 'none',
-                  animation: isLive ? 'trend-pulse 2s ease-in-out infinite' : 'none',
-                }}
-              />
-              {isLive ? 'Live trends — Reddit, Google, Unsplash' : 'Curated picks'}
-            </div>
           </div>
 
           {/* Transformation Cards */}
@@ -344,7 +214,7 @@ export default function LighthouseVideo() {
               margin: '0 auto',
             }}
           >
-            {cards.map((t) => (
+            {featuredTransformations.map((t) => (
               <div
                 key={t.id}
                 className="transform-card"
@@ -427,26 +297,6 @@ export default function LighthouseVideo() {
                   >
                     {t.roomType}
                   </div>
-                  {/* Growth pill — only shown for rising live trends */}
-                  {isLive && typeof t.growthRate === 'number' && t.growthRate >= 100 && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: '10px',
-                        right: '10px',
-                        background: 'rgba(63,201,122,0.92)',
-                        color: '#0a0a0b',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        letterSpacing: '0.05em',
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                      }}
-                    >
-                      ▲ +{Math.round(t.growthRate)}%
-                    </div>
-                  )}
                 </div>
 
                 {/* Card Content */}

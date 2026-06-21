@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb, isDbConfigured } from "./queries/connection";
+import { getDb } from "./queries/connection";
 import { galleryItems } from "@db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -17,17 +17,12 @@ function getCurrentWeekSlot(): string {
 export const galleryRouter = createRouter({
   // Get ALL gallery items (default view)
   listAll: publicQuery.query(async () => {
-    if (!isDbConfigured()) return [];
-    try {
-      const db = getDb();
-      return await db
-        .select()
-        .from(galleryItems)
-        .where(eq(galleryItems.isActive, 1))
-        .orderBy(galleryItems.weekSlot, galleryItems.createdAt);
-    } catch {
-      return [];
-    }
+    const db = getDb();
+    return db
+      .select()
+      .from(galleryItems)
+      .where(eq(galleryItems.isActive, 1))
+      .orderBy(galleryItems.weekSlot, galleryItems.createdAt);
   }),
 
   // Get gallery items for a specific week slot
@@ -38,74 +33,57 @@ export const galleryRouter = createRouter({
       }).optional()
     )
     .query(async ({ input }) => {
+      const db = getDb();
       const slot = input?.weekSlot ?? getCurrentWeekSlot();
-      if (!isDbConfigured()) return { items: [], weekSlot: slot };
-      try {
-        const db = getDb();
-        const items = await db
-          .select()
-          .from(galleryItems)
-          .where(
-            and(
-              eq(galleryItems.weekSlot, slot),
-              eq(galleryItems.isActive, 1)
-            )
+
+      const items = await db
+        .select()
+        .from(galleryItems)
+        .where(
+          and(
+            eq(galleryItems.weekSlot, slot),
+            eq(galleryItems.isActive, 1)
           )
-          .orderBy(galleryItems.createdAt);
-        return { items, weekSlot: slot };
-      } catch {
-        return { items: [], weekSlot: slot };
-      }
+        )
+        .orderBy(galleryItems.createdAt);
+
+      return { items, weekSlot: slot };
     }),
 
   // Get trending styles (highest budget = most popular/trending)
   trending: publicQuery.query(async () => {
-    if (!isDbConfigured()) return [];
-    try {
-      const db = getDb();
-      return await db
-        .select()
-        .from(galleryItems)
-        .where(eq(galleryItems.isActive, 1))
-        .orderBy(desc(galleryItems.totalBudget))
-        .limit(6);
-    } catch {
-      return [];
-    }
+    const db = getDb();
+    return db
+      .select()
+      .from(galleryItems)
+      .where(eq(galleryItems.isActive, 1))
+      .orderBy(desc(galleryItems.totalBudget))
+      .limit(6);
   }),
 
   // Get all unique week slots available
   getWeekSlots: publicQuery.query(async () => {
-    if (!isDbConfigured()) return [];
-    try {
-      const db = getDb();
-      const items = await db
-        .select({ weekSlot: galleryItems.weekSlot })
-        .from(galleryItems)
-        .where(eq(galleryItems.isActive, 1))
-        .groupBy(galleryItems.weekSlot);
-      return items.map((i) => i.weekSlot);
-    } catch {
-      return [];
-    }
+    const db = getDb();
+    const items = await db
+      .select({ weekSlot: galleryItems.weekSlot })
+      .from(galleryItems)
+      .where(eq(galleryItems.isActive, 1))
+      .groupBy(galleryItems.weekSlot);
+
+    return items.map((i) => i.weekSlot);
   }),
 
   // Get single gallery item by ID
   getById: publicQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      if (!isDbConfigured()) return null;
-      try {
-        const db = getDb();
-        const result = await db
-          .select()
-          .from(galleryItems)
-          .where(eq(galleryItems.id, input.id))
-          .limit(1);
-        return result[0] ?? null;
-      } catch {
-        return null;
-      }
+      const db = getDb();
+      const result = await db
+        .select()
+        .from(galleryItems)
+        .where(eq(galleryItems.id, input.id))
+        .limit(1);
+      return result[0] ?? null;
     }),
 
   // Admin: create gallery item

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useMakeover } from '../../contexts/MakeoverContext';
 import { roomTypes } from '../../data/makeoverData';
 import type { RoomType } from '../../types/makeover';
@@ -185,36 +185,15 @@ function UploadBackground() {
 export default function StepUpload() {
   const { state, dispatch } = useMakeover();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
 
-  const readFile = (file: File) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       dispatch({ type: 'SET_IMAGE', payload: event.target?.result as string });
     };
     reader.readAsDataURL(file);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) readFile(file);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) readFile(file);
   };
 
   const handleRoomSelect = (room: RoomType) => {
@@ -229,13 +208,25 @@ export default function StepUpload() {
 
       {/* Content */}
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '11px',
+              letterSpacing: '0.15em',
+              color: '#f25b29',
+              textTransform: 'uppercase',
+            }}
+          >
+            Step 1 of 3
+          </span>
           <h2
             style={{
               fontFamily: 'var(--font-serif)',
               fontSize: 'clamp(1.8rem, 4vw, 3rem)',
               fontWeight: 400,
               color: '#ffffff',
+              marginTop: '1rem',
               lineHeight: 1.2,
             }}
           >
@@ -252,7 +243,7 @@ export default function StepUpload() {
               lineHeight: 1.6,
             }}
           >
-            A clear, well-lit photo gives the best transformation
+            Take a clear photo of your room and we will transform it with AI
           </p>
         </div>
 
@@ -266,72 +257,85 @@ export default function StepUpload() {
         />
 
         {!state.uploadedImage ? (
-          <div
-            className={`makeover-dropzone ${isDragging ? 'makeover-dropzone--drag' : ''}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              width: '100%',
+              maxWidth: '600px',
+              margin: '0 auto 3rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1.5rem',
+              padding: '4rem 2rem',
+              border: '2px dashed rgba(255,255,255,0.2)',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,0.03)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(242,91,41,0.5)';
+              e.currentTarget.style.background = 'rgba(242,91,41,0.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+            }}
           >
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="makeover-dropzone__inner"
-              style={{ border: 'none', color: 'inherit' }}
+            {/* Subtle background image in upload area */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                opacity: 0.03,
+                backgroundImage: 'url(images/gallery/item5.jpg)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            />
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#f25b29"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ position: 'relative', zIndex: 1 }}
             >
-              {/* Subtle background image in upload area */}
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  opacity: 0.04,
-                  backgroundImage: 'url(images/gallery/item5.jpg)',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  pointerEvents: 'none',
-                }}
-              />
-              <svg
-                width="52"
-                height="52"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#f25b29"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ position: 'relative', zIndex: 1 }}
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <path d="M21 15l-5-5L5 21" />
-              </svg>
-              <span
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '17px',
-                  color: '#ffffff',
-                  fontWeight: 500,
-                  position: 'relative',
-                  zIndex: 1,
-                }}
-              >
-                {isDragging ? 'Drop your photo here' : 'Drop a photo, or click to browse'}
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: '#888',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  position: 'relative',
-                  zIndex: 1,
-                }}
-              >
-                JPG · PNG · WebP &nbsp;·&nbsp; Max 10 MB
-              </span>
-            </button>
-          </div>
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="M21 15l-5-5L5 21" />
+            </svg>
+            <span
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: '16px',
+                color: '#ffffff',
+                fontWeight: 400,
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              Click to upload a room photo
+            </span>
+            <span
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: '13px',
+                color: '#b0b2b5',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              Supports JPG, PNG - Max 10MB
+            </span>
+          </button>
         ) : (
           <div
             style={{

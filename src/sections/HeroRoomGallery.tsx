@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { heroConfig } from '../config';
-import HeroOverlay from './HeroOverlay';
 
 export default function HeroRoomGallery() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -207,7 +206,10 @@ export default function HeroRoomGallery() {
           </svg>
         </button>
 
-        {/* Bottom-aligned dynamic room label (updated imperatively by navigate()) */}
+        {/* Title */}
+        {heroConfig.mainTitle && (
+          <div className="archive-title">{heroConfig.mainTitle}</div>
+        )}
         <div ref={subtitleRef} className="archive-subtitle" style={{ opacity: 0.7 }}>
           {rooms[0]?.name || ''}
         </div>
@@ -222,9 +224,6 @@ export default function HeroRoomGallery() {
           </div>
         )}
       </div>
-
-      {/* High-impact CTA overlay (Option A + B): tagline, primary action, floating before/after */}
-      <HeroOverlay />
     </section>
   );
 }

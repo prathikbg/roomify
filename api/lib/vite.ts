@@ -7,9 +7,15 @@ import path from "path";
 type App = Hono<{ Bindings: HttpBindings }>;
 
 export function serveStaticFiles(app: App) {
-  const distPath = path.resolve(import.meta.dirname, "../dist/public");
+  // Resolve the static dir relative to the bundled file's location, not cwd.
+  // After esbuild bundling, this file is inlined into dist/index.js, so
+  // import.meta.dirname === <appRoot>/dist, and dist/public sits next to it.
+  const distPath = path.resolve(import.meta.dirname, "public");
+  // serveStatic uses path.join(root, requestPath); join handles absolute roots
+  // correctly so this works regardless of what cwd Passenger spawns us with.
+  const staticRoot = path.relative(process.cwd(), distPath) || ".";
 
-  app.use("*", serveStatic({ root: "./dist/public" }));
+  app.use("*", serveStatic({ root: staticRoot }));
 
   app.notFound((c) => {
     const accept = c.req.header("accept") ?? "";

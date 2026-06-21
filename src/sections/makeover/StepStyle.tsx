@@ -17,13 +17,25 @@ export default function StepStyle() {
 
   return (
     <div className="makeover-step">
-      <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+      <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '11px',
+            letterSpacing: '0.15em',
+            color: '#f25b29',
+            textTransform: 'uppercase',
+          }}
+        >
+          Step 2 of 3
+        </span>
         <h2
           style={{
             fontFamily: 'var(--font-serif)',
             fontSize: 'clamp(1.8rem, 4vw, 3rem)',
             fontWeight: 400,
             color: '#ffffff',
+            marginTop: '1rem',
             lineHeight: 1.2,
           }}
         >
@@ -35,48 +47,78 @@ export default function StepStyle() {
             fontSize: '15px',
             color: '#b0b2b5',
             marginTop: '0.75rem',
-            maxWidth: '520px',
+            maxWidth: '480px',
             margin: '0.75rem auto 0',
             lineHeight: 1.6,
           }}
         >
-          Pick the look that matches your dream room aesthetic
+          Select the style that matches your dream room aesthetic
         </p>
       </div>
 
       {/* Style Selection Grid */}
-      <div className="style-grid">
-        {designStyles.map((style) => {
-          const selected = state.designStyle === style.value;
-          return (
-            <button
-              key={style.value}
-              type="button"
-              onClick={() => handleStyleSelect(style.value)}
-              className={`style-card ${selected ? 'style-card--selected' : ''}`}
-              aria-pressed={selected}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '16px',
+          maxWidth: '700px',
+          margin: '0 auto 3rem',
+        }}
+      >
+        {designStyles.map((style) => (
+          <button
+            key={style.value}
+            onClick={() => handleStyleSelect(style.value)}
+            style={{
+              padding: '1.5rem 1.25rem',
+              border: state.designStyle === style.value
+                ? '1px solid #f25b29'
+                : '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '10px',
+              background: state.designStyle === style.value
+                ? 'rgba(242,91,41,0.1)'
+                : 'rgba(255,255,255,0.03)',
+              cursor: 'pointer',
+              transition: 'all 0.25s ease',
+              textAlign: 'left',
+            }}
+            onMouseEnter={(e) => {
+              if (state.designStyle !== style.value) {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)';
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (state.designStyle !== style.value) {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+              }
+            }}
+          >
+            <div
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: '16px',
+                fontWeight: state.designStyle === style.value ? 500 : 400,
+                color: state.designStyle === style.value ? '#ffffff' : '#d0d0d0',
+                marginBottom: '0.4rem',
+              }}
             >
-              <div
-                className="style-card__media"
-                style={{ backgroundImage: `url(${style.preview})` }}
-                aria-hidden="true"
-              >
-                <div className="style-card__gradient" />
-                {selected && (
-                  <div className="style-card__check" aria-hidden="true">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-              <div className="style-card__body">
-                <div className="style-card__label">{style.label}</div>
-                <div className="style-card__desc">{style.description}</div>
-              </div>
-            </button>
-          );
-        })}
+              {style.label}
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: '13px',
+                color: '#888',
+                lineHeight: 1.4,
+              }}
+            >
+              {style.description}
+            </div>
+          </button>
+        ))}
       </div>
 
       {/* Budget Selection */}

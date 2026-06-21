@@ -11,12 +11,8 @@ export default function Navigation({ onMenuOpen }: NavigationProps) {
   const navRef = useRef<HTMLElement>(null);
   const logoRef = useRef<HTMLAnchorElement>(null);
   const [scrolled, setScrolled] = useState(false);
-  const [heroVisible, setHeroVisible] = useState(true);
   const location = useLocation();
   const isMakeoverPage = location.pathname === '/makeover';
-  const isHomePage = location.pathname === '/';
-  // Hide the redundant "Start Makeover" pill while the hero (with its own primary CTA) is on-screen.
-  const showMakeoverCta = !isMakeoverPage && !(isHomePage && heroVisible);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,25 +21,6 @@ export default function Navigation({ onMenuOpen }: NavigationProps) {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  useEffect(() => {
-    if (!isHomePage) {
-      setHeroVisible(false);
-      return;
-    }
-    const hero = document.getElementById('hero');
-    if (!hero) {
-      setHeroVisible(false);
-      return;
-    }
-    setHeroVisible(true);
-    const observer = new IntersectionObserver(
-      ([entry]) => setHeroVisible(entry.isIntersecting && entry.intersectionRatio > 0.25),
-      { threshold: [0, 0.25, 0.5, 1] }
-    );
-    observer.observe(hero);
-    return () => observer.disconnect();
-  }, [isHomePage]);
 
   useEffect(() => {
     const logo = logoRef.current;
@@ -113,8 +90,6 @@ export default function Navigation({ onMenuOpen }: NavigationProps) {
         {!isMakeoverPage && (
           <Link
             to="/makeover"
-            aria-hidden={!showMakeoverCta}
-            tabIndex={showMakeoverCta ? 0 : -1}
             style={{
               fontFamily: 'var(--font-sans)',
               fontSize: '11px',
@@ -127,11 +102,8 @@ export default function Navigation({ onMenuOpen }: NavigationProps) {
               borderRadius: '20px',
               padding: '8px 16px',
               cursor: 'pointer',
-              transition: 'opacity 0.4s ease, transform 0.4s ease, border-color 0.3s ease, background 0.3s ease',
+              transition: 'all 0.3s ease',
               textDecoration: 'none',
-              opacity: showMakeoverCta ? 1 : 0,
-              transform: showMakeoverCta ? 'translateY(0)' : 'translateY(-6px)',
-              pointerEvents: showMakeoverCta ? 'auto' : 'none',
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(242,91,41,0.8)';

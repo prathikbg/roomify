@@ -15,15 +15,15 @@ export const roomTypes: { value: RoomType; label: string; icon: string }[] = [
   { value: 'guest-room', label: 'Guest Room', icon: '🏠' },
 ];
 
-export const designStyles: { value: DesignStyle; label: string; description: string; preview: string }[] = [
-  { value: 'modern', label: 'Modern Minimalist', description: 'Clean lines, neutral tones, functional beauty', preview: 'images/gallery/contemporary.jpg' },
-  { value: 'scandinavian', label: 'Scandinavian', description: 'Light woods, cozy textures, natural light', preview: 'images/gallery/coastal.jpg' },
-  { value: 'japandi', label: 'Japandi', description: 'Japanese simplicity meets Scandinavian warmth', preview: 'images/gallery/zen.jpg' },
-  { value: 'luxury', label: 'Luxury', description: 'Opulent materials, rich textures, statement pieces', preview: 'images/gallery/artdeco.jpg' },
-  { value: 'boho', label: 'Boho', description: 'Eclectic patterns, natural materials, vibrant colors', preview: 'images/gallery/moroccan.jpg' },
-  { value: 'industrial', label: 'Industrial', description: 'Raw materials, exposed elements, urban edge', preview: 'images/gallery/midcentury.jpg' },
-  { value: 'traditional-indian', label: 'Traditional Indian', description: 'Carved wood, brass accents, rich textiles', preview: 'images/gallery/mediterranean.jpg' },
-  { value: 'smart-home', label: 'Smart Home', description: 'Integrated tech, sleek automation, futuristic', preview: 'images/gallery/item5.jpg' },
+export const designStyles: { value: DesignStyle; label: string; description: string }[] = [
+  { value: 'modern', label: 'Modern Minimalist', description: 'Clean lines, neutral tones, functional beauty' },
+  { value: 'scandinavian', label: 'Scandinavian', description: 'Light woods, cozy textures, natural light' },
+  { value: 'japandi', label: 'Japandi', description: 'Japanese simplicity meets Scandinavian warmth' },
+  { value: 'luxury', label: 'Luxury', description: 'Opulent materials, rich textures, statement pieces' },
+  { value: 'boho', label: 'Boho', description: 'Eclectic patterns, natural materials, vibrant colors' },
+  { value: 'industrial', label: 'Industrial', description: 'Raw materials, exposed elements, urban edge' },
+  { value: 'traditional-indian', label: 'Traditional Indian', description: 'Carved wood, brass accents, rich textiles' },
+  { value: 'smart-home', label: 'Smart Home', description: 'Integrated tech, sleek automation, futuristic' },
 ];
 
 export const budgetLabels: Record<string, string> = {

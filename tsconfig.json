@@ -12,6 +12,7 @@
     }
   ],
   "compilerOptions": {
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"

@@ -33,7 +33,6 @@ export const navigationConfig: NavigationConfig = {
     { label: "GALLERY", target: "waves-gallery" },
     { label: "INSPIRE", target: "waves-video" },
     { label: "TRENDS", target: "/trends" },
-    { label: "MY DESIGNS", target: "/my-designs" },
     { label: "FOOTER", target: "footer" },
   ],
   menuSideInfo: [
@@ -107,8 +106,11 @@ export const heroConfig: HeroConfig = {
       },
     },
   ],
-  // Meta lines intentionally empty — the messaging now lives in HeroOverlay.
-  metaLines: [],
+  metaLines: [
+    "Transform Any Room with AI",
+    "Modern · Scandinavian · Japandi · Luxury · Boho · Industrial",
+    "Upload Your Room → Choose a Style → Get Your Makeover",
+  ],
 }
 
 // --- Particle Sculpture ---

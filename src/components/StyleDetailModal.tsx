@@ -19,12 +19,10 @@ export default function StyleDetailModal({ detail, onClose }: StyleDetailModalPr
     // Animate in
     gsap.to(overlay, { opacity: 1, duration: 0.3, ease: 'power2.out' });
 
-    // Lock background scroll without losing the current scroll position.
-    // We avoid position:fixed on html/body because it causes a scroll-jump
-    // when the modal closes and also breaks Lenis's wheel handling.
-    const body = document.body;
-    const prevBodyOverflow = body.style.overflow;
-    body.style.overflow = 'hidden';
+    // Lock page scroll by adding a class to html element
+    const html = document.documentElement;
+    const originalClass = html.className;
+    html.className = originalClass + ' modal-open';
 
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') handleClose();
@@ -33,7 +31,7 @@ export default function StyleDetailModal({ detail, onClose }: StyleDetailModalPr
 
     return () => {
       window.removeEventListener('keydown', handleKey);
-      body.style.overflow = prevBodyOverflow;
+      html.className = originalClass;
     };
   }, []);
 
@@ -92,9 +90,8 @@ export default function StyleDetailModal({ detail, onClose }: StyleDetailModalPr
         &times;
       </button>
 
-      {/* Scrollable content — data-lenis-prevent tells Lenis to skip wheel
-          events inside this container so native overflow scrolling works. */}
-      <div ref={scrollRef} className="style-modal-scroll" data-lenis-prevent>
+      {/* Scrollable content */}
+      <div ref={scrollRef} className="style-modal-scroll">
         {/* Hero Image */}
         <div style={{ position: 'relative', marginBottom: '2rem' }}>
           <img
@@ -316,6 +313,19 @@ export default function StyleDetailModal({ detail, onClose }: StyleDetailModalPr
         .style-modal-scroll::-webkit-scrollbar-thumb {
           background: rgba(255,255,255,0.1);
           border-radius: 4px;
+        }
+        html.modal-open {
+          overflow: hidden !important;
+          height: 100% !important;
+          position: fixed;
+          width: 100%;
+        }
+        html.modal-open body {
+          overflow: hidden !important;
+          height: 100% !important;
+          position: fixed;
+          width: 100%;
+          top: 0;
         }
       `}</style>
     </div>

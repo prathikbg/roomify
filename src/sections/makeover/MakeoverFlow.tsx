@@ -6,7 +6,6 @@ import StepUpload from './StepUpload';
 import StepStyle from './StepStyle';
 import StepGenerating from './StepGenerating';
 import StepResults from './StepResults';
-import StepperBar from './StepperBar';
 
 function MakeoverContent() {
   const navigate = useNavigate();
@@ -109,8 +108,6 @@ function MakeoverContent() {
       </button>
 
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-        <StepperBar currentStep={state.currentStep} />
-
         {/* Preset style indicator */}
         {state.designStyle && state.currentStep === 1 && (
           <div
